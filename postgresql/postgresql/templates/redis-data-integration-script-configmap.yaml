@@ -1,0 +1,194 @@
+{{- if and .Values.redisDataIntegration.enabled .Values.redis.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postgresql.fullname" . }}-redis-data-integration-script
+  labels:
+    {{- include "postgresql.redisDataIntegration.labels" . | nindent 4 }}
+data:
+  sync.py: |
+    #!/usr/bin/env python3
+    import os
+    import sys
+    import json
+    import time
+    import psycopg2
+    import redis
+    from psycopg2.extras import RealDictCursor
+    from datetime import datetime
+    
+    # Configurações
+    POSTGRES_HOST = os.getenv('POSTGRES_HOST')
+    POSTGRES_PORT = int(os.getenv('POSTGRES_PORT', 5432))
+    POSTGRES_USER = os.getenv('POSTGRES_USER')
+    POSTGRES_PASSWORD = os.getenv('POSTGRES_PASSWORD')
+    POSTGRES_DB = os.getenv('POSTGRES_DB')
+    
+    REDIS_HOST = os.getenv('REDIS_HOST')
+    REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
+    REDIS_PASSWORD = os.getenv('REDIS_PASSWORD')
+    
+    SYNC_MODE = os.getenv('SYNC_MODE', 'polling')
+    SYNC_INTERVAL = os.getenv('SYNC_INTERVAL', '5m')
+    REDIS_KEY_PREFIX = os.getenv('REDIS_KEY_PREFIX', 'pg:')
+    REDIS_FORMAT = os.getenv('REDIS_FORMAT', 'json')
+    
+    # Converter intervalo (ex: "5m" -> 300 segundos)
+    def parse_interval(interval_str):
+        if interval_str.endswith('m'):
+            return int(interval_str[:-1]) * 60
+        elif interval_str.endswith('h'):
+            return int(interval_str[:-1]) * 3600
+        elif interval_str.endswith('s'):
+            return int(interval_str[:-1])
+        return int(interval_str)
+    
+    SYNC_INTERVAL_SECONDS = parse_interval(SYNC_INTERVAL)
+    
+    # Conectar ao PostgreSQL
+    def get_postgres_conn():
+        return psycopg2.connect(
+            host=POSTGRES_HOST,
+            port=POSTGRES_PORT,
+            user=POSTGRES_USER,
+            password=POSTGRES_PASSWORD,
+            database=POSTGRES_DB
+        )
+    
+    # Conectar ao Redis
+    def get_redis_conn():
+        return redis.Redis(
+            host=REDIS_HOST,
+            port=REDIS_PORT,
+            password=REDIS_PASSWORD if REDIS_PASSWORD else None,
+            decode_responses=True
+        )
+    
+    # Obter tabelas para sincronizar
+    def get_tables_to_sync(pg_conn):
+        # Se houver tabelas específicas configuradas, usar essas
+        # Caso contrário, sincronizar todas as tabelas do schema public
+        with pg_conn.cursor() as cur:
+            cur.execute("""
+                SELECT schemaname, tablename 
+                FROM pg_tables 
+                WHERE schemaname = 'public'
+                ORDER BY schemaname, tablename
+            """)
+            return [(row[0], row[1]) for row in cur.fetchall()]
+    
+    # Sincronizar tabela
+    def sync_table(pg_conn, redis_conn, schema, table):
+        try:
+            with pg_conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Obter todas as linhas da tabela
+                cur.execute(f'SELECT * FROM "{schema}"."{table}"')
+                rows = cur.fetchall()
+                
+                # Obter chave primária
+                cur.execute(f"""
+                    SELECT a.attname
+                    FROM pg_index i
+                    JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+                    WHERE i.indrelid = '"{schema}"."{table}"'::regclass
+                    AND i.indisprimary
+                    LIMIT 1
+                """)
+                pk_result = cur.fetchone()
+                pk_column = pk_result[0] if pk_result else 'id'
+                
+                # Sincronizar cada linha
+                for row in rows:
+                    key_value = row.get(pk_column, row.get('id', None))
+                    if not key_value:
+                        continue
+                    
+                    redis_key = f"{REDIS_KEY_PREFIX}{schema}:{table}:{key_value}"
+                    
+                    if REDIS_FORMAT == 'json':
+                        redis_conn.set(redis_key, json.dumps(dict(row), default=str))
+                    elif REDIS_FORMAT == 'hash':
+                        redis_conn.hset(redis_key, mapping={k: str(v) for k, v in row.items()})
+                    else:  # string
+                        redis_conn.set(redis_key, str(dict(row)))
+                
+                print(f"✓ Sincronizada tabela {schema}.{table}: {len(rows)} registros")
+                return len(rows)
+        except Exception as e:
+            print(f"✗ Erro ao sincronizar {schema}.{table}: {e}")
+            return 0
+    
+    # Modo realtime usando LISTEN/NOTIFY
+    def sync_realtime():
+        pg_conn = get_postgres_conn()
+        redis_conn = get_redis_conn()
+        
+        # Criar trigger para notificar mudanças (seria necessário criar no PostgreSQL)
+        # Por enquanto, faz polling com intervalo menor
+        print("Modo realtime: usando polling rápido (1s)")
+        while True:
+            try:
+                tables = get_tables_to_sync(pg_conn)
+                total = 0
+                for schema, table in tables:
+                    total += sync_table(pg_conn, redis_conn, schema, table)
+                print(f"Sync completo: {total} registros sincronizados - {datetime.now()}")
+                time.sleep(1)  # Polling rápido para "realtime"
+            except Exception as e:
+                print(f"Erro na sincronização: {e}")
+                time.sleep(5)
+    
+    # Modo polling
+    def sync_polling():
+        pg_conn = get_postgres_conn()
+        redis_conn = get_redis_conn()
+        
+        print(f"Modo polling: sincronizando a cada {SYNC_INTERVAL}")
+        while True:
+            try:
+                tables = get_tables_to_sync(pg_conn)
+                total = 0
+                for schema, table in tables:
+                    total += sync_table(pg_conn, redis_conn, schema, table)
+                print(f"Sync completo: {total} registros sincronizados - {datetime.now()}")
+                time.sleep(SYNC_INTERVAL_SECONDS)
+            except Exception as e:
+                print(f"Erro na sincronização: {e}")
+                time.sleep(SYNC_INTERVAL_SECONDS)
+    
+    # Main
+    if __name__ == '__main__':
+        print("=" * 60)
+        print("Redis Data Integration - PostgreSQL -> Redis")
+        print("=" * 60)
+        print(f"PostgreSQL: {POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}")
+        print(f"Redis: {REDIS_HOST}:{REDIS_PORT}")
+        print(f"Modo: {SYNC_MODE}")
+        print(f"Formato: {REDIS_FORMAT}")
+        print(f"Prefix: {REDIS_KEY_PREFIX}")
+        print("=" * 60)
+        
+        # Testar conexões
+        try:
+            pg_conn = get_postgres_conn()
+            pg_conn.close()
+            print("✓ Conexão PostgreSQL OK")
+        except Exception as e:
+            print(f"✗ Erro ao conectar PostgreSQL: {e}")
+            sys.exit(1)
+        
+        try:
+            redis_conn = get_redis_conn()
+            redis_conn.ping()
+            print("✓ Conexão Redis OK")
+        except Exception as e:
+            print(f"✗ Erro ao conectar Redis: {e}")
+            sys.exit(1)
+        
+        # Iniciar sincronização
+        if SYNC_MODE == 'realtime':
+            sync_realtime()
+        else:
+            sync_polling()
+{{- end }}
+

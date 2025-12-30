@@ -1,0 +1,38 @@
+{{- if and .Values.readReplica.enabled (include "postgresql.readReplica.ingress.enabled" .) }}
+{{- $hostname := include "postgresql.readReplica.ingress.hostname" . }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "postgresql.fullname" . }}-read-replica
+  labels:
+    {{- include "postgresql.readReplica.labels" . | nindent 4 }}
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: default-headers@kubernetescrd
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.postgresql.ssl.enabled }}
+  tls:
+    - hosts:
+        - {{ $hostname }}
+      secretName: {{ include "postgresql.fullname" . }}-read-replica-tls
+  {{- end }}
+  rules:
+    - host: {{ $hostname }}
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: {{ include "postgresql.fullname" . }}-read-replica
+              port:
+                number: {{ .Values.readReplica.service.port }}
+{{- end }}
+

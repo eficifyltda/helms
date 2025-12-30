@@ -1,0 +1,124 @@
+{{- if and .Values.redisDataIntegration.enabled .Values.redis.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "postgresql.fullname" . }}-redis-data-integration
+  labels:
+    {{- include "postgresql.redisDataIntegration.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "postgresql.redisDataIntegration.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "postgresql.redisDataIntegration.selectorLabels" . | nindent 8 }}
+    spec:
+      initContainers:
+      - name: wait-for-services
+        image: busybox:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Aguardando PostgreSQL estar pronto..."
+          until nc -z {{ include "postgresql.fullname" . }}-postgresql {{ .Values.postgresql.service.port }}; do
+            sleep 2
+          done
+          echo "PostgreSQL está pronto!"
+          
+          echo "Aguardando Redis estar pronto..."
+          until nc -z {{ include "postgresql.fullname" . }}-redis {{ .Values.redis.service.port }}; do
+            sleep 2
+          done
+          echo "Redis está pronto!"
+      containers:
+      - name: sync
+        image: "{{ .Values.redisDataIntegration.image.repository }}:{{ .Values.redisDataIntegration.image.tag }}"
+        imagePullPolicy: {{ .Values.redisDataIntegration.image.pullPolicy }}
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          
+          # Instalar dependências
+          pip install --no-cache-dir psycopg2-binary redis
+          
+          # Executar script de sincronização
+          chmod +x /app/sync.py
+          python /app/sync.py
+        volumeMounts:
+        - name: sync-script
+          mountPath: /app/sync.py
+          subPath: sync.py
+          readOnly: true
+        env:
+        - name: POSTGRES_HOST
+          value: {{ include "postgresql.fullname" . }}-postgresql
+        - name: POSTGRES_PORT
+          value: "{{ .Values.postgresql.service.port }}"
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "postgresql.fullname" . }}-postgresql
+              key: postgres-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "postgresql.fullname" . }}-postgresql
+              key: postgres-password
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "postgresql.fullname" . }}-postgresql
+              key: postgres-db
+        - name: REDIS_HOST
+          value: {{ include "postgresql.fullname" . }}-redis
+        - name: REDIS_PORT
+          value: "{{ .Values.redis.service.port }}"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "postgresql.fullname" . }}-redis
+              key: redis-password
+        - name: SYNC_MODE
+          value: {{ .Values.redisDataIntegration.sync.mode | quote }}
+        - name: SYNC_INTERVAL
+          value: {{ .Values.redisDataIntegration.sync.interval | quote }}
+        - name: REDIS_KEY_PREFIX
+          value: {{ .Values.redisDataIntegration.sync.keyPrefix | quote }}
+        - name: REDIS_FORMAT
+          value: {{ .Values.redisDataIntegration.sync.format | quote }}
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "ps aux | grep -v grep | grep sync.py"
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - "ps aux | grep -v grep | grep sync.py"
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        resources:
+          {{- toYaml .Values.redisDataIntegration.resources | nindent 10 }}
+      volumes:
+      - name: sync-script
+        configMap:
+          name: {{ include "postgresql.fullname" . }}-redis-data-integration-script
+          defaultMode: 0755
+{{- end }}
+

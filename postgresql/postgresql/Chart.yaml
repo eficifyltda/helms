@@ -1,0 +1,24 @@
+apiVersion: v2
+name: postgresql
+description: A Helm chart for PostgreSQL with PgBouncer, automated backups, and Prometheus monitoring (Proprietário: Eficify)
+type: application
+version: 1.5.1
+appVersion: "latest"
+keywords:
+  - postgresql
+  - database
+  - pgbouncer
+  - backup
+  - prometheus
+  - eficify
+home: https://www.postgresql.org/
+sources:
+  - https://github.com/postgres/postgres
+maintainers:
+  - name: Eficify Team
+    email: team@eficify.com
+annotations:
+  proprietary: "true"
+  owner: "Eficify"
+dependencies: []
+

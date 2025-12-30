@@ -1,0 +1,344 @@
+# PostgreSQL Helm Chart - Valores Otimizados para Produção
+# Este arquivo contém configurações otimizadas para ambientes de produção
+# Uso: helm install postgresql . -f values-production.yaml
+
+# PostgreSQL Configuration
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  
+  # Database configuration
+  database: postgres
+  username: sadmin
+  password: "" # Será gerada automaticamente se vazio
+  
+  # Tamanho otimizado para produção
+  sizePreset: large # large, xlarge, 2xlarge ou 4xlarge dependendo da carga
+  
+  # Exposição pública desabilitada por padrão em produção (use LoadBalancer se necessário)
+  exposePublicly:
+    enabled: true
+    serviceType: LoadBalancer
+    port: 15433
+  
+  # Alta Disponibilidade
+  affinity:
+    podAntiAffinity:
+      enabled: true
+      type: preferred # Use 'required' para garantir distribuição
+      topologyKey: kubernetes.io/hostname
+  
+  # Health Checks otimizados para produção
+  healthCheck:
+    liveness:
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 5
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 3
+      successThreshold: 1
+      failureThreshold: 3
+  
+  # SSL/TLS - HABILITADO em produção
+  # Quando habilitado, o Ingress com Traefik é configurado automaticamente
+  # Hostname será gerado automaticamente: [random]-db.[hostname-server].eficify.cloud
+  ssl:
+    enabled: true
+    mode: require # ou verify-ca, verify-full para maior segurança
+    secretName: "" # Configure com o nome do Secret contendo os certificados (opcional para Traefik)
+  
+  # Init Scripts - Para extensões e configurações iniciais
+  initScripts:
+    enabled: true
+    scripts:
+      - name: init-extensions.sql
+        content: |
+          -- Extensões úteis para produção
+          CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+          CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+          CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+          
+          -- Configurar pg_stat_statements
+          ALTER SYSTEM SET pg_stat_statements.track = 'all';
+          ALTER SYSTEM SET pg_stat_statements.max = 10000;
+          
+          -- Criar schema para aplicação (ajuste conforme necessário)
+          -- CREATE SCHEMA IF NOT EXISTS app_schema;
+  
+  # Replication habilitada para produção
+  replication:
+    enabled: true
+    max_wal_senders: 10
+    wal_keep_size: "2GB"
+    hot_standby: true
+    hot_standby_feedback: true
+
+# Read Replica Configuration
+readReplica:
+  enabled: true # Habilitar read replica em produção
+  image:
+    repository: postgres
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "2000m"
+    limits:
+      memory: "8Gi"
+      cpu: "4000m"
+  
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  
+  service:
+    type: ClusterIP
+    port: 5432
+  
+  securityContext:
+    runAsUser: 999
+    runAsGroup: 999
+    fsGroup: 999
+
+# PgBouncer Configuration
+pgbouncer:
+  enabled: true
+  image:
+    repository: pgbouncer/pgbouncer
+    tag: "1.21.0"
+    pullPolicy: IfNotPresent
+  
+  # Configurações otimizadas para produção
+  poolMode: transaction
+  maxClientConn: 2000
+  defaultPoolSize: 50
+  minPoolSize: 10
+  reservePoolSize: 10
+  reservePoolTimeout: 5
+  maxDBConnections: 100
+  maxUserConnections: 50
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  
+  service:
+    type: ClusterIP
+    port: 5432
+  
+  adminUsers: ["sadmin"]
+  statsUsers: ["sadmin"]
+
+# Backup Configuration - CRÍTICO em produção
+backup:
+  enabled: true
+  
+  # Backups diários às 2h da manhã
+  schedule: "0 2 * * *"
+  
+  destination: s3
+  
+  s3:
+    enabled: true
+    bucket: "" # CONFIGURE com seu bucket S3
+    region: "us-east-1"
+    endpoint: ""
+    accessKeyId: "" # Ou use IAM role
+    secretAccessKey: ""
+    useIAMRole: false # Configure como true se usar IAM role no EKS
+  
+  disk:
+    enabled: false
+    path: "/backups"
+    retentionDays: 7
+  
+  # Retenção de 30 backups (aproximadamente 1 mês)
+  retention: 30
+  compression: true
+
+# Backup Restore - Para disaster recovery
+backupRestore:
+  enabled: false # Habilitar apenas quando necessário restaurar
+  restoreFromS3:
+    bucket: ""
+    key: ""
+    region: "us-east-1"
+  restoreFromDisk:
+    path: ""
+  options:
+    dropBeforeRestore: false
+    createDatabase: true
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    labels:
+      release: prometheus
+  
+  postgresExporter:
+    enabled: true
+    image:
+      repository: quay.io/prometheuscommunity/postgres-exporter
+      tag: "v0.15.0"
+      pullPolicy: IfNotPresent
+    
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+    
+    # Queries customizadas para monitoramento de produção
+    queries: |
+      pg_replication:
+        query: "SELECT CASE WHEN NOT pg_is_in_recovery() THEN 0 ELSE GREATEST (0, EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp()))) END AS lag"
+        master: true
+        metrics:
+          - lag:
+              usage: "GAUGE"
+              description: "Replication lag behind master in seconds"
+      
+      pg_stat_database_blks:
+        query: "SELECT datname, blks_hit, blks_read, tup_returned, tup_fetched, tup_inserted, tup_updated, tup_deleted FROM pg_stat_database WHERE datname NOT IN ('template0', 'template1', 'postgres')"
+        master: true
+        metrics:
+          - datname:
+              usage: "LABEL"
+              description: "Database name"
+          - blks_hit:
+              usage: "COUNTER"
+              description: "Number of disk blocks found in buffer cache"
+          - blks_read:
+              usage: "COUNTER"
+              description: "Number of disk blocks read"
+          - tup_returned:
+              usage: "COUNTER"
+              description: "Number of rows returned"
+          - tup_fetched:
+              usage: "COUNTER"
+              description: "Number of rows fetched"
+          - tup_inserted:
+              usage: "COUNTER"
+              description: "Number of rows inserted"
+          - tup_updated:
+              usage: "COUNTER"
+              description: "Number of rows updated"
+          - tup_deleted:
+              usage: "COUNTER"
+              description: "Number of rows deleted"
+
+# Service Account
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  # Exemplo para AWS EKS com IAM role:
+  # annotations:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/postgresql-role
+
+# Pod Disruption Budget - CRÍTICO para alta disponibilidade
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  maxUnavailable: 0
+
+# Network Policy - Segurança de rede
+networkPolicy:
+  enabled: true
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Permitir acesso apenas de namespaces específicos
+    # Ajuste conforme sua arquitetura
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            name: app-namespace
+      ports:
+      - protocol: TCP
+        port: 5432
+    # Permitir acesso do PgBouncer
+    - from:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/component: pgbouncer
+      ports:
+      - protocol: TCP
+        port: 5432
+    # Permitir acesso do exporter
+    - from:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/component: postgres-exporter
+      ports:
+      - protocol: TCP
+        port: 5432
+  egress:
+    # Permitir acesso a DNS
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: UDP
+        port: 53
+    # Permitir acesso ao S3 (se usar backup S3)
+    - to:
+      - namespaceSelector: {}
+      ports:
+      - protocol: TCP
+        port: 443
+    # Permitir acesso entre pods PostgreSQL (para replicação)
+    - to:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/component: postgresql
+      ports:
+      - protocol: TCP
+        port: 5432
+    - to:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/component: read-replica
+      ports:
+      - protocol: TCP
+        port: 5432
+
+# Ingress - Habilitado automaticamente quando SSL está habilitado
+# Hostname será gerado automaticamente: [random]-db.[hostname-server].eficify.cloud
+ingress:
+  enabled: false # Habilitado automaticamente se postgresql.ssl.enabled = true
+  className: traefik
+  hostnameServer: "k8s-prod" # Ajuste conforme seu ambiente (k8s-prod, k8s-stg, etc)
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: default-headers@kubernetescrd
+  hosts:
+    - host: "" # Deixe vazio para gerar automaticamente: [random]-db.[hostname-server].eficify.cloud
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+

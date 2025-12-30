@@ -1,0 +1,39 @@
+{{- if and .Values.postgresql.enabled (include "postgresql.ingress.enabled" .) }}
+{{- $hostname := include "postgresql.ingress.hostname" . }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "postgresql.fullname" . }}-postgresql
+  labels:
+    {{- include "postgresql.postgresql.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.postgresql.ssl.enabled }}
+  tls:
+    - hosts:
+        - {{ $hostname }}
+      secretName: {{ include "postgresql.fullname" . }}-postgresql-tls
+  {{- end }}
+  rules:
+    - host: {{ $hostname }}
+      http:
+        paths:
+        {{- range .Values.ingress.hosts }}
+        {{- range .paths }}
+        - path: {{ .path }}
+          pathType: {{ .pathType }}
+          backend:
+            service:
+              name: {{ include "postgresql.fullname" $ }}-postgresql
+              port:
+                number: {{ include "postgresql.service.port" $ }}
+        {{- end }}
+        {{- end }}
+{{- end }}
+

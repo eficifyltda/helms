@@ -1,0 +1,33 @@
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postgresql.fullname" . }}-redis-config
+  labels:
+    {{- include "postgresql.redis.labels" . | nindent 4 }}
+data:
+  redis.conf: |
+    # Redis Configuration
+    maxmemory {{ .Values.redis.config.maxmemory }}
+    maxmemory-policy {{ .Values.redis.config.maxmemory-policy }}
+    save {{ .Values.redis.config.save }}
+    appendonly {{ .Values.redis.config.appendonly }}
+    appendfsync {{ .Values.redis.config.appendfsync }}
+    
+    # Security
+    {{- if .Values.redis.requirePassword }}
+    requirepass ${REDIS_PASSWORD}
+    {{- end }}
+    
+    # Network
+    bind 0.0.0.0
+    protected-mode yes
+    port 6379
+    
+    # Logging
+    loglevel notice
+    
+    # Persistence
+    dir /data
+{{- end }}
+

@@ -1,0 +1,18 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.postgresExporter.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "postgresql.fullname" . }}-postgres-exporter
+  labels:
+    {{- include "postgresql.exporter.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 9187
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "postgresql.exporter.selectorLabels" . | nindent 4 }}
+{{- end }}
+

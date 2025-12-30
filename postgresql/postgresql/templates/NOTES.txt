@@ -1,0 +1,249 @@
+===============================================================================
+                    PostgreSQL Helm Chart - Eficify
+===============================================================================
+
+Instalação concluída com sucesso!
+
+{{- $preset := include "postgresql.preset.map" . }}
+{{- $presetDisplay := .Values.postgresql.sizePreset }}
+{{- if eq .Values.postgresql.sizePreset "dev" }}
+{{- $presetDisplay = "dev (small)" }}
+{{- else if eq .Values.postgresql.sizePreset "stg" }}
+{{- $presetDisplay = "stg (medium)" }}
+{{- end }}
+
+INFORMAÇÕES DA INSTALAÇÃO:
+--------------------------
+
+Release Name:     {{ .Release.Name }}
+Namespace:        {{ .Release.Namespace }}
+Chart Version:    {{ .Chart.Version }}
+
+TAMANHO E CONFIGURAÇÃO:
+-----------------------
+Preset:           {{ $presetDisplay }}
+{{- if ne .Values.postgresql.sizePreset "custom" }}
+{{- $presetConfig := index .Values.sizePresets $preset }}
+Descrição:        {{ $presetConfig.description }}
+{{- end }}
+
+Recursos:
+{{- if eq .Values.postgresql.sizePreset "custom" }}
+  Memória:        {{ .Values.postgresql.resources.requests.memory }} / {{ .Values.postgresql.resources.limits.memory }}
+  CPU:            {{ .Values.postgresql.resources.requests.cpu }} / {{ .Values.postgresql.resources.limits.cpu }}
+  Storage:        {{ .Values.postgresql.persistence.size }}
+{{- else }}
+{{- $presetConfig := index .Values.sizePresets $preset }}
+  Memória:        {{ $presetConfig.resources.requests.memory }} / {{ $presetConfig.resources.limits.memory }}
+  CPU:            {{ $presetConfig.resources.requests.cpu }} / {{ $presetConfig.resources.limits.cpu }}
+  Storage:        {{ $presetConfig.persistence.size }}
+{{- end }}
+
+Configurações do PostgreSQL:
+{{- if eq .Values.postgresql.sizePreset "custom" }}
+  Max Connections: {{ .Values.postgresql.config.max_connections }}
+  Shared Buffers:  {{ .Values.postgresql.config.shared_buffers }}
+{{- else }}
+{{- $presetConfig := index .Values.sizePresets $preset }}
+  Max Connections: {{ $presetConfig.config.max_connections }}
+  Shared Buffers:  {{ $presetConfig.config.shared_buffers }}
+{{- end }}
+
+CREDENCIAIS:
+------------
+Usuário:          {{ .Values.postgresql.username }}
+Database:         {{ .Values.postgresql.database }}
+{{- $password := include "postgresql.password" . }}
+{{- if .Values.postgresql.password }}
+Senha:            (definida pelo usuário)
+{{- else }}
+Senha:            {{ $password }}
+                  ⚠️  IMPORTANTE: Guarde esta senha em local seguro!
+{{- end }}
+
+Para obter a senha novamente:
+  kubectl get secret {{ include "postgresql.fullname" . }}-postgresql \
+    -o jsonpath="{.data.postgres-password}" | base64 -d && echo
+
+SERVIÇOS:
+---------
+{{- if .Values.postgresql.enabled }}
+PostgreSQL:       {{ include "postgresql.fullname" . }}-postgresql
+  Tipo:           {{ include "postgresql.service.type" . }}
+  Porta:           {{ include "postgresql.service.port" . }}
+{{- if .Values.postgresql.exposePublicly.enabled }}
+  ⚠️  ATENÇÃO: PostgreSQL está exposto publicamente na porta {{ include "postgresql.service.port" . }}!
+{{- end }}
+{{- end }}
+
+{{- if .Values.pgbouncer.enabled }}
+PgBouncer:        {{ include "postgresql.fullname" . }}-pgbouncer
+  Tipo:           {{ .Values.pgbouncer.service.type }}
+  Porta:          {{ .Values.pgbouncer.service.port }}
+{{- end }}
+
+{{- if include "postgresql.replication.enabled" . }}
+{{- if .Values.readReplica.enabled }}
+Read Replica:     {{ include "postgresql.fullname" . }}-read-replica
+  Tipo:           {{ .Values.readReplica.service.type }}
+  Porta:          {{ .Values.readReplica.service.port }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.redis.enabled }}
+Redis:            {{ include "postgresql.fullname" . }}-redis
+  Tipo:           {{ .Values.redis.service.type }}
+  Porta:          {{ .Values.redis.service.port }}
+  {{- $redisPassword := include "redis.password" . }}
+  {{- if .Values.redis.password }}
+  Senha:          (definida pelo usuário)
+  {{- else }}
+  Senha:          {{ $redisPassword }}
+                  ⚠️  IMPORTANTE: Guarde esta senha em local seguro!
+  {{- end }}
+{{- end }}
+
+{{- if and .Values.redisDataIntegration.enabled .Values.redis.enabled }}
+Redis Data Integration: {{ include "postgresql.fullname" . }}-redis-data-integration
+  Modo:           {{ .Values.redisDataIntegration.sync.mode }}
+  Formato:        {{ .Values.redisDataIntegration.sync.format }}
+  Prefix:         {{ .Values.redisDataIntegration.sync.keyPrefix }}
+  Status:         Verifique com: kubectl get pods -l app.kubernetes.io/component=redis-data-integration
+{{- end }}
+
+STATUS DOS SERVIÇOS:
+--------------------
+Verifique o status dos pods:
+
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Verifique os serviços:
+
+  kubectl get svc -l app.kubernetes.io/instance={{ .Release.Name }}
+
+CONFIGURAÇÕES ESPECIAIS:
+------------------------
+{{- if or (eq .Values.postgresql.sizePreset "dev") (eq .Values.postgresql.sizePreset "stg") }}
+⚠️  Ambiente {{ .Values.postgresql.sizePreset | upper }} detectado:
+   - Backups: DESABILITADOS
+   - Replicação: DESABILITADA
+   - Instâncias: 1 (single instance)
+{{- end }}
+
+{{- if include "postgresql.backup.enabled" . }}
+Backups:          HABILITADOS
+  Schedule:       {{ .Values.backup.schedule }}
+  Destino:        {{ .Values.backup.destination }}
+{{- if eq .Values.backup.destination "s3" }}
+  Bucket:         {{ .Values.backup.s3.bucket }}
+{{- end }}
+{{- else }}
+Backups:          DESABILITADOS (ambiente dev/stg)
+{{- end }}
+
+{{- if include "postgresql.replication.enabled" . }}
+Replicação:       HABILITADA
+{{- if .Values.readReplica.enabled }}
+  Read Replica:   HABILITADA
+{{- else }}
+  Read Replica:   DESABILITADA
+{{- end }}
+{{- else }}
+Replicação:       DESABILITADA (ambiente dev/stg)
+{{- end }}
+
+{{- if .Values.monitoring.enabled }}
+Monitoramento:    HABILITADO
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+  ServiceMonitor: HABILITADO
+{{- end }}
+{{- end }}
+
+{{- if .Values.redis.enabled }}
+REDIS:
+--------
+Redis está habilitado e sincronizando dados do PostgreSQL.
+
+Para conectar ao Redis:
+  kubectl port-forward svc/{{ include "postgresql.fullname" . }}-redis {{ .Values.redis.service.port }}:{{ .Values.redis.service.port }}
+  redis-cli -h localhost -p {{ .Values.redis.service.port }} {{- if .Values.redis.requirePassword }} -a $(kubectl get secret {{ include "postgresql.fullname" . }}-redis -o jsonpath="{.data.redis-password}" | base64 -d){{- end }}
+
+{{- if and .Values.redisDataIntegration.enabled .Values.redis.enabled }}
+Redis Data Integration está sincronizando dados do PostgreSQL para Redis.
+
+Verificar logs da sincronização:
+  kubectl logs -l app.kubernetes.io/component=redis-data-integration --tail=50
+
+Verificar dados no Redis:
+  redis-cli -h localhost -p {{ .Values.redis.service.port }} {{- if .Values.redis.requirePassword }} -a $(kubectl get secret {{ include "postgresql.fullname" . }}-redis -o jsonpath="{.data.redis-password}" | base64 -d){{- end }} KEYS "{{ .Values.redisDataIntegration.sync.keyPrefix }}*"
+
+Ver um registro específico:
+  redis-cli -h localhost -p {{ .Values.redis.service.port }} {{- if .Values.redis.requirePassword }} -a $(kubectl get secret {{ include "postgresql.fullname" . }}-redis -o jsonpath="{.data.redis-password}" | base64 -d){{- end }} GET "{{ .Values.redisDataIntegration.sync.keyPrefix }}public:users:1"
+{{- end }}
+{{- end }}
+
+CONEXÃO:
+--------
+{{- if include "postgresql.ingress.enabled" . }}
+{{- $hostname := include "postgresql.ingress.hostname" . }}
+Ingress configurado automaticamente (SSL habilitado):
+
+  Hostname (Master): {{ $hostname }}
+  
+  Verifique o Ingress:
+  kubectl get ingress {{ include "postgresql.fullname" . }}-postgresql
+  
+  Conecte usando:
+  psql -h {{ $hostname }} -p 443 -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }} -W
+  
+  Ou via Traefik:
+  psql "postgresql://{{ .Values.postgresql.username }}:PASSWORD@{{ $hostname }}:443/{{ .Values.postgresql.database }}?sslmode=require"
+
+{{- if include "postgresql.readReplica.ingress.enabled" . }}
+{{- $readReplicaHostname := include "postgresql.readReplica.ingress.hostname" . }}
+  Hostname (Read Replica): {{ $readReplicaHostname }}
+  
+  Verifique o Ingress da réplica:
+  kubectl get ingress {{ include "postgresql.fullname" . }}-read-replica
+  
+  Conecte à réplica de leitura:
+  psql -h {{ $readReplicaHostname }} -p 443 -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }} -W
+  
+  Ou via Traefik:
+  psql "postgresql://{{ .Values.postgresql.username }}:PASSWORD@{{ $readReplicaHostname }}:443/{{ .Values.postgresql.database }}?sslmode=require"
+{{- end }}
+{{- else if .Values.postgresql.exposePublicly.enabled }}
+{{- if eq (include "postgresql.service.type" .) "LoadBalancer" }}
+Aguardando IP externo do LoadBalancer...
+
+  kubectl get svc {{ include "postgresql.fullname" . }}-postgresql
+
+Conecte usando:
+  psql -h <EXTERNAL-IP> -p {{ include "postgresql.service.port" . }} -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }}
+{{- else if eq (include "postgresql.service.type" .) "NodePort" }}
+Obtenha o NodePort:
+
+  kubectl get svc {{ include "postgresql.fullname" . }}-postgresql
+
+Conecte usando:
+  psql -h <NODE-IP> -p <NODE-PORT> -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }}
+{{- end }}
+{{- else }}
+Para conectar localmente:
+
+  kubectl port-forward svc/{{ include "postgresql.fullname" . }}-postgresql {{ include "postgresql.service.port" . }}:{{ include "postgresql.service.port" . }}
+  psql -h localhost -p {{ include "postgresql.service.port" . }} -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }}
+{{- end }}
+
+{{- if .Values.pgbouncer.enabled }}
+Ou via PgBouncer (recomendado):
+
+  kubectl port-forward svc/{{ include "postgresql.fullname" . }}-pgbouncer {{ .Values.pgbouncer.service.port }}:{{ .Values.pgbouncer.service.port }}
+  psql -h localhost -p {{ .Values.pgbouncer.service.port }} -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }}
+{{- end }}
+
+===============================================================================
+                    Este Helm Chart é proprietário da Eficify
+                    Versão: {{ .Chart.Version }}
+===============================================================================
+
