@@ -5,6 +5,41 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [1.5.1] - 2024-12-19
+
+### Implementação
+- **Ingress para Read Replica**: Quando read replica está habilitada e SSL está ativo, um Ingress adicional é criado automaticamente
+- **Hostname Read Replica**: Hostname gerado automaticamente com sufixo `-ra` para identificar réplica de leitura
+- **Formato**: `[random]-db-ra.[hostname-server].eficify.cloud`
+
+### Melhoria
+- Dois Ingress criados automaticamente quando read replica está habilitada (master e réplica)
+- Identificação clara da réplica através do sufixo `-ra` no hostname
+- NOTES.txt atualizado com informações de ambos os Ingress
+
+## [1.5.0] - 2024-12-19
+
+### Implementação
+- **Redis Data Integration**: Sincronização de dados do PostgreSQL para Redis
+- **Servidor Redis**: Deployment completo do Redis com persistência e configuração
+- **Sincronização Python**: Script Python que sincroniza dados do PostgreSQL para Redis
+- **Dois Modos de Sincronização**: 
+  - `realtime`: Polling rápido (1 segundo) para sincronização quase em tempo real
+  - `polling`: Sincronização periódica conforme intervalo configurável
+- **Sincronização Configurável**: Suporte para sincronizar tabelas específicas ou todas do schema public
+- **Múltiplos Formatos**: Suporte para JSON, Hash e String no Redis
+- **Templates Completos**: Redis deployment, service, configmap, secret, PVC
+- **Redis Data Integration Deployment**: Container Python que executa sincronização contínua
+- **Logical Replication**: PostgreSQL configurado automaticamente com `wal_level = logical` quando Redis Data Integration está habilitado
+
+### Melhoria
+- Sincronização automática de todas as tabelas do schema public (ou tabelas específicas)
+- Detecção automática de chave primária para cada tabela
+- Chaves no Redis seguem padrão: `{prefix}{schema}:{table}:{primary_key}`
+- Health checks para Redis e Redis Data Integration
+- Init container aguarda PostgreSQL e Redis estarem prontos
+- NOTES.txt atualizado com informações do Redis e comandos úteis
+
 ## [1.4.1] - 2024-12-19
 
 ### Implementação

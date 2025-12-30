@@ -8,7 +8,7 @@ metadata:
 data:
   pgbouncer.ini: |
     [databases]
-    {{ .Values.postgresql.database }} = host={{ include "postgresql.fullname" . }}-postgresql port={{ .Values.postgresql.service.port }} dbname={{ .Values.postgresql.database }}
+    {{ .Values.postgresql.database }} = host={{ include "postgresql.fullname" . }}-postgresql port={{ include "postgresql.service.port" . }} dbname={{ .Values.postgresql.database }}
     
     [pgbouncer]
     pool_mode = {{ .Values.pgbouncer.poolMode }}

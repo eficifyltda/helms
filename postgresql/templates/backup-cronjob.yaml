@@ -109,7 +109,7 @@ spec:
             - name: POSTGRES_HOST
               value: {{ include "postgresql.fullname" . }}-postgresql
             - name: POSTGRES_PORT
-              value: "{{ .Values.postgresql.service.port }}"
+              value: "{{ include "postgresql.service.port" . }}"
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:

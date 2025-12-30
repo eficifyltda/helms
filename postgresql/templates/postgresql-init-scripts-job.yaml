@@ -1,4 +1,4 @@
-{{- if and .Values.postgresql.enabled .Values.postgresql.initScripts.enabled .Values.postgresql.initScripts.scripts }}
+{{- if and .Values.postgresql.enabled .Values.postgresql.initScripts (and .Values.postgresql.initScripts.enabled .Values.postgresql.initScripts.scripts) }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -35,9 +35,9 @@ spec:
           echo "PostgreSQL está pronto. Executando scripts de inicialização..."
           {{- range .Values.postgresql.initScripts.scripts }}
           echo "Executando script: {{ .name }}"
-          PGPASSWORD="${POSTGRES_PASSWORD}" psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB} <<'EOF'
-          {{ .content }}
-          EOF
+          PGPASSWORD="${POSTGRES_PASSWORD}" psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB} <<'SCRIPT_EOF'
+          {{- .content | indent 10 }}
+          SCRIPT_EOF
           {{- end }}
           echo "Scripts de inicialização concluídos!"
         env:

@@ -11,6 +11,7 @@ Chart Helm completo para PostgreSQL com PgBouncer, backups automatizados e monit
 - **Senha automática**: Geração automática de senha se não fornecida
 - **PgBouncer**: Connection pooler para otimização de conexões
 - **Read Replica**: Réplica somente leitura com streaming replication
+- **Redis Data Integration**: Sincronização em tempo real PostgreSQL -> Redis
 - **Backups Automatizados**: Suporte para S3 e disco local com retenção configurável
 - **Backup Restore**: Job para restaurar backups automaticamente
 - **Monitoramento Prometheus**: Exportador de métricas com ServiceMonitor
@@ -84,6 +85,19 @@ helm install postgresql . \
   --set monitoring.enabled=true \
   --set monitoring.serviceMonitor.enabled=true
 ```
+
+### Instalação com Redis Data Integration
+
+```bash
+helm install postgresql . \
+  --set redis.enabled=true \
+  --set redisDataIntegration.enabled=true
+```
+
+Isso irá:
+- Instalar um servidor Redis
+- Configurar sincronização em tempo real do PostgreSQL para Redis
+- Usar Debezium para capturar mudanças via WAL do PostgreSQL
 
 ## Configuração
 
@@ -252,6 +266,43 @@ backupRestore:
     createDatabase: true
 ```
 
+### Redis Data Integration
+
+Sincronizar dados do PostgreSQL para Redis em tempo real:
+
+```yaml
+redis:
+  enabled: true
+  password: "" # Gerada automaticamente se vazio
+  persistence:
+    enabled: true
+    size: 10Gi
+
+redisDataIntegration:
+  enabled: true
+  sync:
+    # Sincronizar tabelas específicas
+    tables:
+      - schema: public
+        table: users
+        key: id
+        redisKey: "user:{id}"
+      - schema: public
+        table: products
+        key: product_id
+        redisKey: "product:{product_id}"
+    mode: realtime # realtime ou snapshot
+    format: json # json, hash, string
+    keyPrefix: "pg:"
+```
+
+**Nota**: O Redis Data Integration sincroniza dados do PostgreSQL para Redis. 
+- **Modo realtime**: Polling rápido (1 segundo) para sincronização quase em tempo real
+- **Modo polling**: Sincronização periódica conforme intervalo configurado
+- O PostgreSQL é configurado automaticamente com `wal_level = logical` quando Redis Data Integration está habilitado
+- Suporta múltiplos formatos: JSON, Hash ou String no Redis
+- Chaves no Redis seguem o padrão: `{prefix}{schema}:{table}:{primary_key}`
+
 ### Configuração do PgBouncer
 
 ```yaml
@@ -330,6 +381,11 @@ ingress:
 
 O hostname é gerado automaticamente no formato: `[random]-db.[hostname-server].eficify.cloud`
 
+**Quando Read Replica está habilitada:**
+- Um Ingress adicional é criado automaticamente para a réplica de leitura
+- Hostname da réplica: `[random]-db-ra.[hostname-server].eficify.cloud`
+- O sufixo `-ra` identifica que é a réplica de leitura (Read Replica)
+
 **Exemplo de uso:**
 
 ```bash
@@ -338,7 +394,16 @@ helm install postgresql . \
   --set postgresql.ssl.enabled=true \
   --set ingress.hostnameServer=k8s-prod
 
-# O hostname gerado será exibido no NOTES.txt após a instalação
+# Com Read Replica, dois Ingress serão criados:
+helm install postgresql . \
+  --set postgresql.ssl.enabled=true \
+  --set postgresql.replication.enabled=true \
+  --set readReplica.enabled=true \
+  --set ingress.hostnameServer=k8s-prod
+
+# Hostnames gerados:
+# Master: a1b2c3d4-db.k8s-prod.eficify.cloud
+# Read Replica: x9y8z7w6-db-ra.k8s-prod.eficify.cloud
 ```
 
 ## Uso

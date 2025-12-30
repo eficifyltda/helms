@@ -1,4 +1,4 @@
-{{- if and .Values.postgresql.enabled .Values.postgresql.initScripts.enabled .Values.postgresql.initScripts.scripts }}
+{{- if and .Values.postgresql.enabled .Values.postgresql.initScripts (and .Values.postgresql.initScripts.enabled .Values.postgresql.initScripts.scripts) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

@@ -26,7 +26,7 @@ data:
     max_parallel_maintenance_workers = {{ include "postgresql.config.value" (list "max_parallel_maintenance_workers" .) }}
     
     # SSL/TLS settings
-    {{- if .Values.postgresql.ssl.enabled }}
+    {{- if and .Values.postgresql.ssl .Values.postgresql.ssl.enabled }}
     ssl = on
     ssl_cert_file = '/var/lib/postgresql/data/ssl/server.crt'
     ssl_key_file = '/var/lib/postgresql/data/ssl/server.key'
@@ -37,11 +37,24 @@ data:
     
     # Replication settings
     {{- if include "postgresql.replication.enabled" . }}
+    {{- if .Values.postgresql.replication }}
     wal_level = replica
-    max_wal_senders = {{ .Values.postgresql.replication.max_wal_senders }}
-    wal_keep_size = {{ .Values.postgresql.replication.wal_keep_size }}
-    hot_standby = {{ .Values.postgresql.replication.hot_standby }}
-    hot_standby_feedback = {{ .Values.postgresql.replication.hot_standby_feedback }}
+    max_wal_senders = {{ .Values.postgresql.replication.max_wal_senders | default 10 }}
+    wal_keep_size = {{ .Values.postgresql.replication.wal_keep_size | default "1GB" }}
+    hot_standby = {{ .Values.postgresql.replication.hot_standby | default true }}
+    hot_standby_feedback = {{ .Values.postgresql.replication.hot_standby_feedback | default true }}
+    {{- end }}
+    {{- end }}
+    
+    # Enable logical replication for Redis Data Integration
+    {{- if and .Values.redisDataIntegration .Values.redisDataIntegration.enabled .Values.redis .Values.redis.enabled }}
+    {{- if not (include "postgresql.replication.enabled" .) }}
+    wal_level = logical
+    max_wal_senders = 10
+    {{- else }}
+    wal_level = logical
+    {{- end }}
+    max_replication_slots = 10
     {{- end }}
     
     # Logging

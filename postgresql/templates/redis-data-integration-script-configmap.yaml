@@ -1,4 +1,4 @@
-{{- if and .Values.redisDataIntegration.enabled .Values.redis.enabled }}
+{{- if and .Values.redisDataIntegration (default false .Values.redisDataIntegration.enabled) .Values.redis (default false .Values.redis.enabled) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:

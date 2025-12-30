@@ -111,7 +111,7 @@ Create the name of the service account to use
 PostgreSQL connection string
 */}}
 {{- define "postgresql.connectionString" -}}
-postgresql://{{ .Values.postgresql.username }}:{{ .Values.postgresql.password }}@{{ include "postgresql.fullname" . }}-postgresql:{{ .Values.postgresql.service.port }}/{{ .Values.postgresql.database }}
+postgresql://{{ .Values.postgresql.username }}:{{ .Values.postgresql.password }}@{{ include "postgresql.fullname" . }}-postgresql:{{ .Values.postgresql.service.port | default 5432 }}/{{ .Values.postgresql.database }}
 {{- end }}
 
 {{/*
@@ -174,7 +174,11 @@ Check if replication should be enabled (disabled for dev/stg)
 {{- if or (eq $preset "dev") (eq $preset "stg") }}
 {{- false }}
 {{- else }}
-{{- .Values.postgresql.replication.enabled }}
+{{- if .Values.postgresql.replication }}
+{{- default false .Values.postgresql.replication.enabled }}
+{{- else }}
+{{- false }}
+{{- end }}
 {{- end }}
 {{- end }}
 
@@ -248,7 +252,7 @@ Get service type (public or cluster)
 {{- if .Values.postgresql.exposePublicly.enabled }}
 {{- .Values.postgresql.exposePublicly.serviceType }}
 {{- else }}
-{{- .Values.postgresql.service.type }}
+{{- .Values.postgresql.service.type | default "ClusterIP" }}
 {{- end }}
 {{- end }}
 
@@ -262,7 +266,7 @@ Get service port (validate not 5432 when public)
 {{- end }}
 {{- .Values.postgresql.exposePublicly.port }}
 {{- else }}
-{{- .Values.postgresql.service.port }}
+{{- .Values.postgresql.service.port | default 5432 }}
 {{- end }}
 {{- end }}
 
@@ -271,8 +275,11 @@ Generate random hostname for Ingress when SSL is enabled
 Format: [random]-db.[hostname-server].eficify.cloud
 */}}
 {{- define "postgresql.ingress.hostname" -}}
-{{- $host := (index .Values.ingress.hosts 0).host }}
-{{- if and .Values.postgresql.ssl.enabled (not $host) }}
+{{- $host := "" }}
+{{- if and .Values.ingress .Values.ingress.hosts (index .Values.ingress.hosts 0) }}
+{{- $host = (index .Values.ingress.hosts 0).host }}
+{{- end }}
+{{- if and .Values.postgresql.ssl (default false .Values.postgresql.ssl.enabled) (not $host) }}
 {{- $random := randAlphaNum 8 | lower }}
 {{- $hostnameServer := .Values.ingress.hostnameServer }}
 {{- if not $hostnameServer }}
@@ -287,13 +294,58 @@ Format: [random]-db.[hostname-server].eficify.cloud
 {{- end }}
 
 {{/*
+Generate Redis password if not provided
+*/}}
+{{- define "redis.password" -}}
+{{- if and .Values.redis .Values.redis.password }}
+{{- .Values.redis.password }}
+{{- else }}
+{{- randAlphaNum 32 }}
+{{- end }}
+{{- end }}
+
+{{/*
 Check if Ingress should be enabled (auto-enable when SSL is enabled)
 */}}
 {{- define "postgresql.ingress.enabled" -}}
-{{- if .Values.postgresql.ssl.enabled }}
+{{- if and .Values.postgresql.ssl (default false .Values.postgresql.ssl.enabled) }}
 {{- true }}
 {{- else }}
-{{- .Values.ingress.enabled }}
+{{- default false .Values.ingress.enabled }}
+{{- end }}
+{{- end }}
+
+{{/*
+Check if Read Replica Ingress should be enabled (auto-enable when SSL is enabled)
+*/}}
+{{- define "postgresql.readReplica.ingress.enabled" -}}
+{{- if and .Values.postgresql.ssl (default false .Values.postgresql.ssl.enabled) }}
+{{- true }}
+{{- else }}
+{{- default false .Values.ingress.enabled }}
+{{- end }}
+{{- end }}
+
+{{/*
+Generate random hostname for Read Replica Ingress when SSL is enabled
+Format: [random]-db-replica.[hostname-server].eficify.cloud
+*/}}
+{{- define "postgresql.readReplica.ingress.hostname" -}}
+{{- $host := "" }}
+{{- if and .Values.ingress .Values.ingress.hosts (index .Values.ingress.hosts 0) }}
+{{- $host = (index .Values.ingress.hosts 0).host }}
+{{- end }}
+{{- if and .Values.postgresql.ssl (default false .Values.postgresql.ssl.enabled) (not $host) }}
+{{- $random := randAlphaNum 8 | lower }}
+{{- $hostnameServer := .Values.ingress.hostnameServer }}
+{{- if not $hostnameServer }}
+{{- $hostnameServer = "k8s" }}
+{{- end }}
+{{- printf "%s-db-replica.%s.eficify.cloud" $random $hostnameServer }}
+{{- else if $host }}
+{{- printf "%s-replica" $host }}
+{{- else }}
+{{- "postgresql-replica.example.com" }}
 {{- end }}
 {{- end }}
 

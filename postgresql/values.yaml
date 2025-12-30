@@ -58,6 +58,11 @@ postgresql:
     max_parallel_workers_per_gather: 2
     max_parallel_workers: 4
     max_parallel_maintenance_workers: 2
+  
+  # Service
+  service:
+    type: ClusterIP
+    port: 5432
 
 # Size Presets - Configurações pré-definidas para diferentes tamanhos
 # small: Ambiente de desenvolvimento/teste
@@ -240,11 +245,6 @@ sizePresets:
       max_parallel_workers_per_gather: 32
       max_parallel_workers: 64
       max_parallel_maintenance_workers: 32
-  
-  # Service
-  service:
-    type: ClusterIP
-    port: 5432
   
   # Security Context
   securityContext:

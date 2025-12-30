@@ -14,7 +14,7 @@ spec:
   {{- if .Values.ingress.className }}
   ingressClassName: {{ .Values.ingress.className }}
   {{- end }}
-  {{- if .Values.postgresql.ssl.enabled }}
+  {{- if and .Values.postgresql.ssl .Values.postgresql.ssl.enabled }}
   tls:
     - hosts:
         - {{ $hostname }}
