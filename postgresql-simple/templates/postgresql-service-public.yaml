@@ -1,0 +1,23 @@
+{{- if .Values.exposePublicly.enabled }}
+{{- if eq .Values.exposePublicly.port 5432 }}
+{{- fail "Public port cannot be 5432 for security reasons. Please use a different port (e.g., 5433)" }}
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "postgresql-simple.postgresql.name" . }}-public
+  labels:
+    {{- include "postgresql-simple.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql-public
+spec:
+  type: {{ .Values.exposePublicly.serviceType }}
+  ports:
+  - port: {{ .Values.exposePublicly.port }}
+    targetPort: postgresql
+    protocol: TCP
+    name: postgresql
+  selector:
+    {{- include "postgresql-simple.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: postgresql
+{{- end }}
+

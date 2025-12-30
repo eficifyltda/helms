@@ -19,6 +19,11 @@ helm install postgresql . -n postgresql --create-namespace
 # Instalar com PgBouncer
 helm install postgresql . -n postgresql --create-namespace \
   --set pgbouncer.enabled=true
+
+# Instalar expondo publicamente via LoadBalancer (porta 5433)
+helm install postgresql . -n postgresql --create-namespace \
+  --set exposePublicly.enabled=true \
+  --set exposePublicly.port=5433
 ```
 
 ## Configuração
@@ -91,6 +96,9 @@ psql -h localhost -U postgres -d postgres
 | `pgbouncer.poolMode` | Modo do pool | `transaction` |
 | `service.type` | Tipo do Service | `ClusterIP` |
 | `service.port` | Porta do Service | `5432` |
+| `exposePublicly.enabled` | Expor PostgreSQL publicamente | `false` |
+| `exposePublicly.serviceType` | Tipo do Service público | `LoadBalancer` |
+| `exposePublicly.port` | Porta pública (NÃO pode ser 5432) | `5433` |
 
 ### Security Context
 
@@ -114,10 +122,34 @@ postgresql:
 helm uninstall postgresql -n postgresql
 ```
 
+## Expor Publicamente
+
+⚠️ **ATENÇÃO:** Expor PostgreSQL publicamente é um risco de segurança. Use apenas em desenvolvimento/teste.
+
+```bash
+# Expor via LoadBalancer na porta 5433
+helm install postgresql . -n postgresql --create-namespace \
+  --set exposePublicly.enabled=true \
+  --set exposePublicly.port=5433
+
+# Ou via NodePort
+helm install postgresql . -n postgresql --create-namespace \
+  --set exposePublicly.enabled=true \
+  --set exposePublicly.serviceType=NodePort \
+  --set exposePublicly.port=5433
+```
+
+**Segurança:**
+- A porta pública **NÃO pode ser 5432** (validação automática)
+- Use uma porta diferente (ex: 5433, 15432, etc.)
+- O Service ClusterIP interno continua na porta 5432
+- Considere usar SSL/TLS e firewall quando expor publicamente
+
 ## Notas
 
 - Este chart é otimizado para **desenvolvimento** e não deve ser usado em produção sem revisão adequada
 - O PgBouncer é opcional e pode ser habilitado quando necessário
 - A senha é auto-gerada se não fornecida
 - Os dados são persistidos em um PVC por padrão
+- Expor publicamente deve ser feito com cuidado e apenas em ambientes de desenvolvimento/teste
 

@@ -17,7 +17,19 @@
    psql -h localhost -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }}
 {{- end }}
 
-4. Credenciais:
+{{- if .Values.exposePublicly.enabled }}
+4. PostgreSQL está exposto publicamente:
+   Service: {{ include "postgresql-simple.postgresql.name" . }}-public
+   Tipo: {{ .Values.exposePublicly.serviceType }}
+   Porta: {{ .Values.exposePublicly.port }}
+   
+   Obter IP externo:
+   kubectl get svc {{ include "postgresql-simple.postgresql.name" . }}-public -n {{ .Release.Namespace }}
+   
+   ⚠️  ATENÇÃO: PostgreSQL está exposto publicamente na porta {{ .Values.exposePublicly.port }}!
+{{- end }}
+
+5. Credenciais:
    Usuário: {{ .Values.postgresql.username }}
    Database: {{ .Values.postgresql.database }}
    Senha: (execute o comando acima para obter)
