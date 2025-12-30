@@ -292,8 +292,8 @@ Get PostgreSQL persistence accessMode based on preset or custom
 Get service type (public or cluster)
 */}}
 {{- define "postgresql.service.type" -}}
-{{- if .Values.postgresql.exposePublicly.enabled }}
-{{- .Values.postgresql.exposePublicly.serviceType }}
+{{- if and .Values.postgresql.exposePublicly .Values.postgresql.exposePublicly.enabled }}
+{{- .Values.postgresql.exposePublicly.serviceType | default "LoadBalancer" }}
 {{- else }}
 {{- if .Values.postgresql.service }}
 {{- .Values.postgresql.service.type | default "ClusterIP" }}
