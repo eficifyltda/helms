@@ -35,8 +35,8 @@ postgresql:
   # fsGroup will automatically fix volume permissions in Kubernetes
   securityContext:
     enabled: true
-    runAsUser: 999  # PostgreSQL official image default user
-    fsGroup: 999    # PostgreSQL official image default group
+    runAsUser: 999  # PostgreSQL official image default user (postgres)
+    fsGroup: 999    # PostgreSQL official image default group (Kubernetes fixes permissions automatically)
 
 # PgBouncer Configuration (Optional)
 pgbouncer:

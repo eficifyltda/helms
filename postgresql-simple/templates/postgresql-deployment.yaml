@@ -16,34 +16,15 @@ spec:
         {{- include "postgresql-simple.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: postgresql
     spec:
-      {{- if .Values.postgresql.securityContext.enabled }}
       securityContext:
         fsGroup: {{ .Values.postgresql.securityContext.fsGroup }}
         runAsUser: {{ .Values.postgresql.securityContext.runAsUser }}
         runAsGroup: {{ .Values.postgresql.securityContext.fsGroup }}
-        runAsNonRoot: true
-      {{- end }}
       containers:
       - name: postgresql
         image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
         imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
-        {{- if .Values.postgresql.securityContext.enabled }}
-        securityContext:
-          runAsUser: {{ .Values.postgresql.securityContext.runAsUser }}
-          runAsGroup: {{ .Values.postgresql.securityContext.fsGroup }}
-          runAsNonRoot: true
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-        {{- else }}
-        securityContext:
-          runAsNonRoot: true
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-            - ALL
-        {{- end }}
+        # Using PostgreSQL official image defaults - no custom securityContext needed
         ports:
         - name: postgresql
           containerPort: 5432
