@@ -10,7 +10,7 @@ metadata:
     {{- include "postgresql-simple.labels" . | nindent 4 }}
     app.kubernetes.io/component: postgresql-public
 spec:
-  type: {{ .Values.exposePublicly.serviceType }}
+  type: {{ .Values.exposePublicly.serviceType | default "LoadBalancer" }}
   ports:
   - port: {{ .Values.exposePublicly.port }}
     targetPort: postgresql

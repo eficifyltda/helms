@@ -67,6 +67,6 @@ service:
 # WARNING: Exposing PostgreSQL publicly is a security risk. Use with caution!
 exposePublicly:
   enabled: false
-  serviceType: LoadBalancer # LoadBalancer or NodePort
+  serviceType: LoadBalancer # LoadBalancer (default) or NodePort
   port: 5433 # Public port (MUST be different from 5432 for security)
 
