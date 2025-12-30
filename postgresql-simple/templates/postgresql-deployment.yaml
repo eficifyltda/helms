@@ -23,23 +23,6 @@ spec:
         runAsGroup: {{ .Values.postgresql.securityContext.fsGroup }}
         runAsNonRoot: true
       {{- end }}
-      {{- if and .Values.postgresql.persistence.enabled (or .Values.postgresql.volumePermissions.enabled .Values.postgresql.securityContext.enabled) }}
-      initContainers:
-      - name: fix-permissions
-        image: busybox:1.36
-        command:
-        - sh
-        - -c
-        - |
-          chown -R {{ if .Values.postgresql.securityContext.enabled }}{{ .Values.postgresql.securityContext.runAsUser }}{{ else }}999{{ end }}:{{ if .Values.postgresql.securityContext.enabled }}{{ .Values.postgresql.securityContext.fsGroup }}{{ else }}999{{ end }} /var/lib/postgresql/data || true
-          chmod 700 /var/lib/postgresql/data || true
-        volumeMounts:
-        - name: data
-          mountPath: /var/lib/postgresql/data
-        securityContext:
-          runAsUser: 0
-          allowPrivilegeEscalation: false
-      {{- end }}
       containers:
       - name: postgresql
         image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
@@ -86,13 +69,6 @@ spec:
         volumeMounts:
         - name: data
           mountPath: /var/lib/postgresql/data
-        - name: config
-          mountPath: /etc/postgresql/postgresql.conf
-          subPath: postgresql.conf
-        command:
-        - postgres
-        - -c
-        - config_file=/etc/postgresql/postgresql.conf
         resources:
           {{- toYaml .Values.postgresql.resources | nindent 10 }}
         livenessProbe:
@@ -121,7 +97,4 @@ spec:
         {{- else }}
         emptyDir: {}
         {{- end }}
-      - name: config
-        configMap:
-          name: {{ include "postgresql-simple.postgresql.name" . }}-config
 
