@@ -4,7 +4,7 @@ Um chart Helm simples e otimizado para desenvolvimento do PostgreSQL com suporte
 
 ## Características
 
-- ✅ PostgreSQL 18.1
+- ✅ PostgreSQL 18.1 
 - ✅ Configuração simples e direta
 - ✅ PgBouncer opcional
 - ✅ Otimizado para desenvolvimento

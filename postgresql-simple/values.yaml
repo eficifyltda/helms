@@ -31,12 +31,10 @@ postgresql:
   maxConnections: 100
   sharedBuffers: "128MB"
   
-  # Security Context (uses PostgreSQL official image defaults)
-  # fsGroup will automatically fix volume permissions in Kubernetes
+  # Security Context - disabled to use PostgreSQL image defaults
+  # The PostgreSQL official image handles user/permissions internally
   securityContext:
-    enabled: true
-    runAsUser: 999  # PostgreSQL official image default user (postgres)
-    fsGroup: 999    # PostgreSQL official image default group (Kubernetes fixes permissions automatically)
+    enabled: false
 
 # PgBouncer Configuration (Optional)
 pgbouncer:

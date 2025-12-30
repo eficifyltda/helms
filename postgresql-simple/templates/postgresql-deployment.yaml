@@ -16,10 +16,6 @@ spec:
         {{- include "postgresql-simple.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: postgresql
     spec:
-      securityContext:
-        fsGroup: {{ .Values.postgresql.securityContext.fsGroup }}
-        runAsUser: {{ .Values.postgresql.securityContext.runAsUser }}
-        runAsGroup: {{ .Values.postgresql.securityContext.fsGroup }}
       containers:
       - name: postgresql
         image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
