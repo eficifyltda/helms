@@ -116,7 +116,7 @@ pgbouncer:
   enabled: true
   image:
     repository: pgbouncer/pgbouncer
-    tag: "1.21.0"
+    tag: "1.21"
     pullPolicy: IfNotPresent
   
   # Configurações otimizadas para produção

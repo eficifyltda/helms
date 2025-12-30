@@ -7,17 +7,13 @@ Expand the name of the chart.
 
 {{/*
 Create a default fully qualified app name.
+Simplificado: usa apenas nameOverride ou Chart.Name, sem Release.Name
 */}}
 {{- define "postgresql.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
-{{- if contains $name .Release.Name }}
-{{- .Release.Name | trunc 63 | trimSuffix "-" }}
-{{- else }}
-{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
-{{- end }}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- end }}
 
@@ -272,7 +268,7 @@ Get service port (validate not 5432 when public)
 
 {{/*
 Generate random hostname for Ingress when SSL is enabled
-Format: [random]-db.[hostname-server].eficify.cloud
+Format: [random]-pgsql-db.[hostname-server].eficify.cloud
 */}}
 {{- define "postgresql.ingress.hostname" -}}
 {{- $host := "" }}
@@ -285,7 +281,7 @@ Format: [random]-db.[hostname-server].eficify.cloud
 {{- if not $hostnameServer }}
 {{- $hostnameServer = "k8s" }}
 {{- end }}
-{{- printf "%s-db.%s.eficify.cloud" $random $hostnameServer }}
+{{- printf "%s-pgsql-db.%s.eficify.cloud" $random $hostnameServer }}
 {{- else if $host }}
 {{- $host }}
 {{- else }}
@@ -316,6 +312,17 @@ Check if Ingress should be enabled (auto-enable when SSL is enabled)
 {{- end }}
 
 {{/*
+Get PostgreSQL DNS name
+*/}}
+{{- define "postgresql.dns" -}}
+{{- if and .Values.postgresql.dns .Values.postgresql.dns.custom }}
+{{- .Values.postgresql.dns.custom }}
+{{- else }}
+{{- printf "%s-postgresql.%s.svc.cluster.local" (include "postgresql.fullname" .) .Release.Namespace }}
+{{- end }}
+{{- end }}
+
+{{/*
 Check if Read Replica Ingress should be enabled (auto-enable when SSL is enabled)
 */}}
 {{- define "postgresql.readReplica.ingress.enabled" -}}
@@ -328,7 +335,7 @@ Check if Read Replica Ingress should be enabled (auto-enable when SSL is enabled
 
 {{/*
 Generate random hostname for Read Replica Ingress when SSL is enabled
-Format: [random]-db-replica.[hostname-server].eficify.cloud
+Format: [random]-pgsql-db-replica.[hostname-server].eficify.cloud
 */}}
 {{- define "postgresql.readReplica.ingress.hostname" -}}
 {{- $host := "" }}
@@ -341,11 +348,43 @@ Format: [random]-db-replica.[hostname-server].eficify.cloud
 {{- if not $hostnameServer }}
 {{- $hostnameServer = "k8s" }}
 {{- end }}
-{{- printf "%s-db-replica.%s.eficify.cloud" $random $hostnameServer }}
+{{- printf "%s-pgsql-db-replica.%s.eficify.cloud" $random $hostnameServer }}
 {{- else if $host }}
 {{- printf "%s-replica" $host }}
 {{- else }}
 {{- "postgresql-replica.example.com" }}
+{{- end }}
+{{- end }}
+
+{{/*
+Check if Redis Ingress should be enabled
+*/}}
+{{- define "redis.ingress.enabled" -}}
+{{- if and .Values.redis (default false .Values.redis.enabled) .Values.redis.ingress (default false .Values.redis.ingress.enabled) }}
+{{- true }}
+{{- else }}
+{{- false }}
+{{- end }}
+{{- end }}
+
+{{/*
+Generate random hostname for Redis Ingress
+Format: [random]-redis-db.[hostname-server].eficify.cloud
+*/}}
+{{- define "redis.ingress.hostname" -}}
+{{- $host := "" }}
+{{- if and .Values.redis .Values.redis.ingress .Values.redis.ingress.hosts (index .Values.redis.ingress.hosts 0) }}
+{{- $host = (index .Values.redis.ingress.hosts 0).host }}
+{{- end }}
+{{- if not $host }}
+{{- $random := randAlphaNum 8 | lower }}
+{{- $hostnameServer := .Values.ingress.hostnameServer }}
+{{- if not $hostnameServer }}
+{{- $hostnameServer = "k8s" }}
+{{- end }}
+{{- printf "%s-redis-db.%s.eficify.cloud" $random $hostnameServer }}
+{{- else }}
+{{- $host }}
 {{- end }}
 {{- end }}
 

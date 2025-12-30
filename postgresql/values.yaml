@@ -63,6 +63,14 @@ postgresql:
   service:
     type: ClusterIP
     port: 5432
+  
+  # DNS Configuration
+  # DNS padrão para conexão ao PostgreSQL
+  # Se vazio, será gerado automaticamente como: <fullname>-postgresql.<namespace>.svc.cluster.local
+  dns:
+    enabled: true
+    # Use um DNS customizado ou deixe vazio para usar o padrão do Kubernetes
+    custom: ""
 
 # Size Presets - Configurações pré-definidas para diferentes tamanhos
 # small: Ambiente de desenvolvimento/teste
@@ -344,7 +352,7 @@ pgbouncer:
   enabled: true
   image:
     repository: pgbouncer/pgbouncer
-    tag: "1.21.0"
+    tag: "1.21"
     pullPolicy: IfNotPresent
   
   # Connection pool settings

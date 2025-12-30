@@ -62,7 +62,7 @@ Senha:            {{ $password }}
 {{- end }}
 
 Para obter a senha novamente:
-  kubectl get secret {{ include "postgresql.fullname" . }}-postgresql \
+  kubectl get secret {{ include "postgresql.fullname" . }}-postgresql -n {{ .Release.Namespace }} \
     -o jsonpath="{.data.postgres-password}" | base64 -d && echo
 
 SERVIÇOS:
@@ -71,6 +71,14 @@ SERVIÇOS:
 PostgreSQL:       {{ include "postgresql.fullname" . }}-postgresql
   Tipo:           {{ include "postgresql.service.type" . }}
   Porta:           {{ include "postgresql.service.port" . }}
+  {{- if and .Values.postgresql.dns (default true .Values.postgresql.dns.enabled) }}
+  DNS:             {{ include "postgresql.dns" . }}
+  Connection String: postgresql://{{ .Values.postgresql.username }}:PASSWORD@{{ include "postgresql.dns" . }}:{{ include "postgresql.service.port" . }}/{{ .Values.postgresql.database }}
+  {{- end }}
+  {{- if include "postgresql.ingress.enabled" . }}
+  {{- $hostname := include "postgresql.ingress.hostname" . }}
+  Ingress URL:     https://{{ $hostname }}
+  {{- end }}
 {{- if .Values.postgresql.exposePublicly.enabled }}
   ⚠️  ATENÇÃO: PostgreSQL está exposto publicamente na porta {{ include "postgresql.service.port" . }}!
 {{- end }}
@@ -87,6 +95,10 @@ PgBouncer:        {{ include "postgresql.fullname" . }}-pgbouncer
 Read Replica:     {{ include "postgresql.fullname" . }}-read-replica
   Tipo:           {{ .Values.readReplica.service.type }}
   Porta:          {{ .Values.readReplica.service.port }}
+  {{- if include "postgresql.readReplica.ingress.enabled" . }}
+  {{- $readReplicaHostname := include "postgresql.readReplica.ingress.hostname" . }}
+  Ingress URL:     https://{{ $readReplicaHostname }}
+  {{- end }}
 {{- end }}
 {{- end }}
 
@@ -94,6 +106,10 @@ Read Replica:     {{ include "postgresql.fullname" . }}-read-replica
 Redis:            {{ include "postgresql.fullname" . }}-redis
   Tipo:           {{ if .Values.redis.service }}{{ .Values.redis.service.type | default "ClusterIP" }}{{ else }}ClusterIP{{ end }}
   Porta:          {{ if .Values.redis.service }}{{ .Values.redis.service.port | default 6379 }}{{ else }}6379{{ end }}
+  {{- if include "redis.ingress.enabled" . }}
+  {{- $redisHostname := include "redis.ingress.hostname" . }}
+  Ingress URL:     https://{{ $redisHostname }}
+  {{- end }}
   {{- $redisPassword := include "redis.password" . }}
   {{- if .Values.redis.password }}
   Senha:          (definida pelo usuário)
@@ -108,18 +124,18 @@ Redis Data Integration: {{ include "postgresql.fullname" . }}-redis-data-integra
   Modo:           {{ .Values.redisDataIntegration.sync.mode }}
   Formato:        {{ .Values.redisDataIntegration.sync.format }}
   Prefix:         {{ .Values.redisDataIntegration.sync.keyPrefix }}
-  Status:         Verifique com: kubectl get pods -l app.kubernetes.io/component=redis-data-integration
+  Status:         Verifique com: kubectl get pods -l app.kubernetes.io/component=redis-data-integration -n {{ .Release.Namespace }}
 {{- end }}
 
 STATUS DOS SERVIÇOS:
 --------------------
 Verifique o status dos pods:
 
-  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl get pods -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
 
 Verifique os serviços:
 
-  kubectl get svc -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl get svc -l app.kubernetes.io/instance={{ .Release.Name }} -n {{ .Release.Namespace }}
 
 CONFIGURAÇÕES ESPECIAIS:
 ------------------------
@@ -164,21 +180,31 @@ REDIS:
 --------
 Redis está habilitado e sincronizando dados do PostgreSQL.
 
+{{- if include "redis.ingress.enabled" . }}
+{{- $redisHostname := include "redis.ingress.hostname" . }}
+Ingress configurado para Redis:
+
+  URL: https://{{ $redisHostname }}
+  
+  Verifique o Ingress:
+  kubectl get ingress {{ include "postgresql.fullname" . }}-redis -n {{ .Release.Namespace }}
+{{- end }}
+
 Para conectar ao Redis:
-  kubectl port-forward svc/{{ include "postgresql.fullname" . }}-redis {{ if .Values.redis.service }}{{ .Values.redis.service.port | default 6379 }}{{ else }}6379{{ end }}:{{ if .Values.redis.service }}{{ .Values.redis.service.port | default 6379 }}{{ else }}6379{{ end }}
-  redis-cli -h localhost -p {{ if .Values.redis.service }}{{ .Values.redis.service.port | default 6379 }}{{ else }}6379{{ end }} {{- if and .Values.redis (default false .Values.redis.requirePassword) }} -a $(kubectl get secret {{ include "postgresql.fullname" . }}-redis -o jsonpath="{.data.redis-password}" | base64 -d){{- end }}
+  kubectl port-forward svc/{{ include "postgresql.fullname" . }}-redis {{ if .Values.redis.service }}{{ .Values.redis.service.port | default 6379 }}{{ else }}6379{{ end }}:{{ if .Values.redis.service }}{{ .Values.redis.service.port | default 6379 }}{{ else }}6379{{ end }} -n {{ .Release.Namespace }}
+  redis-cli -h localhost -p {{ if .Values.redis.service }}{{ .Values.redis.service.port | default 6379 }}{{ else }}6379{{ end }} {{- if and .Values.redis (default false .Values.redis.requirePassword) }} -a $(kubectl get secret {{ include "postgresql.fullname" . }}-redis -n {{ .Release.Namespace }} -o jsonpath="{.data.redis-password}" | base64 -d){{- end }}
 
 {{- if and .Values.redisDataIntegration (default false .Values.redisDataIntegration.enabled) .Values.redis (default false .Values.redis.enabled) }}
 Redis Data Integration está sincronizando dados do PostgreSQL para Redis.
 
 Verificar logs da sincronização:
-  kubectl logs -l app.kubernetes.io/component=redis-data-integration --tail=50
+  kubectl logs -l app.kubernetes.io/component=redis-data-integration --tail=50 -n {{ .Release.Namespace }}
 
 Verificar dados no Redis:
-  redis-cli -h localhost -p {{ if .Values.redis.service }}{{ .Values.redis.service.port | default 6379 }}{{ else }}6379{{ end }} {{- if and .Values.redis (default false .Values.redis.requirePassword) }} -a $(kubectl get secret {{ include "postgresql.fullname" . }}-redis -o jsonpath="{.data.redis-password}" | base64 -d){{- end }} KEYS "{{ if .Values.redisDataIntegration }}{{ .Values.redisDataIntegration.sync.keyPrefix }}{{ else }}pg:{{ end }}*"
+  redis-cli -h localhost -p {{ if .Values.redis.service }}{{ .Values.redis.service.port | default 6379 }}{{ else }}6379{{ end }} {{- if and .Values.redis (default false .Values.redis.requirePassword) }} -a $(kubectl get secret {{ include "postgresql.fullname" . }}-redis -n {{ .Release.Namespace }} -o jsonpath="{.data.redis-password}" | base64 -d){{- end }} KEYS "{{ if .Values.redisDataIntegration }}{{ .Values.redisDataIntegration.sync.keyPrefix }}{{ else }}pg:{{ end }}*"
 
 Ver um registro específico:
-  redis-cli -h localhost -p {{ if .Values.redis.service }}{{ .Values.redis.service.port | default 6379 }}{{ else }}6379{{ end }} {{- if and .Values.redis (default false .Values.redis.requirePassword) }} -a $(kubectl get secret {{ include "postgresql.fullname" . }}-redis -o jsonpath="{.data.redis-password}" | base64 -d){{- end }} GET "{{ if .Values.redisDataIntegration }}{{ .Values.redisDataIntegration.sync.keyPrefix }}{{ else }}pg:{{ end }}public:users:1"
+  redis-cli -h localhost -p {{ if .Values.redis.service }}{{ .Values.redis.service.port | default 6379 }}{{ else }}6379{{ end }} {{- if and .Values.redis (default false .Values.redis.requirePassword) }} -a $(kubectl get secret {{ include "postgresql.fullname" . }}-redis -n {{ .Release.Namespace }} -o jsonpath="{.data.redis-password}" | base64 -d){{- end }} GET "{{ if .Values.redisDataIntegration }}{{ .Values.redisDataIntegration.sync.keyPrefix }}{{ else }}pg:{{ end }}public:users:1"
 {{- end }}
 {{- end }}
 
@@ -188,10 +214,10 @@ CONEXÃO:
 {{- $hostname := include "postgresql.ingress.hostname" . }}
 Ingress configurado automaticamente (SSL habilitado):
 
-  Hostname (Master): {{ $hostname }}
+  URL (Master): https://{{ $hostname }}
   
   Verifique o Ingress:
-  kubectl get ingress {{ include "postgresql.fullname" . }}-postgresql
+  kubectl get ingress {{ include "postgresql.fullname" . }}-postgresql -n {{ .Release.Namespace }}
   
   Conecte usando:
   psql -h {{ $hostname }} -p 443 -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }} -W
@@ -201,10 +227,10 @@ Ingress configurado automaticamente (SSL habilitado):
 
 {{- if include "postgresql.readReplica.ingress.enabled" . }}
 {{- $readReplicaHostname := include "postgresql.readReplica.ingress.hostname" . }}
-  Hostname (Read Replica): {{ $readReplicaHostname }}
+  URL (Read Replica): https://{{ $readReplicaHostname }}
   
   Verifique o Ingress da réplica:
-  kubectl get ingress {{ include "postgresql.fullname" . }}-read-replica
+  kubectl get ingress {{ include "postgresql.fullname" . }}-read-replica -n {{ .Release.Namespace }}
   
   Conecte à réplica de leitura:
   psql -h {{ $readReplicaHostname }} -p 443 -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }} -W
@@ -216,14 +242,14 @@ Ingress configurado automaticamente (SSL habilitado):
 {{- if eq (include "postgresql.service.type" .) "LoadBalancer" }}
 Aguardando IP externo do LoadBalancer...
 
-  kubectl get svc {{ include "postgresql.fullname" . }}-postgresql
+  kubectl get svc {{ include "postgresql.fullname" . }}-postgresql -n {{ .Release.Namespace }}
 
 Conecte usando:
   psql -h <EXTERNAL-IP> -p {{ include "postgresql.service.port" . }} -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }}
 {{- else if eq (include "postgresql.service.type" .) "NodePort" }}
 Obtenha o NodePort:
 
-  kubectl get svc {{ include "postgresql.fullname" . }}-postgresql
+  kubectl get svc {{ include "postgresql.fullname" . }}-postgresql -n {{ .Release.Namespace }}
 
 Conecte usando:
   psql -h <NODE-IP> -p <NODE-PORT> -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }}
@@ -231,14 +257,14 @@ Conecte usando:
 {{- else }}
 Para conectar localmente:
 
-  kubectl port-forward svc/{{ include "postgresql.fullname" . }}-postgresql {{ include "postgresql.service.port" . }}:{{ include "postgresql.service.port" . }}
+  kubectl port-forward svc/{{ include "postgresql.fullname" . }}-postgresql {{ include "postgresql.service.port" . }}:{{ include "postgresql.service.port" . }} -n {{ .Release.Namespace }}
   psql -h localhost -p {{ include "postgresql.service.port" . }} -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }}
 {{- end }}
 
 {{- if .Values.pgbouncer.enabled }}
 Ou via PgBouncer (recomendado):
 
-  kubectl port-forward svc/{{ include "postgresql.fullname" . }}-pgbouncer {{ .Values.pgbouncer.service.port }}:{{ .Values.pgbouncer.service.port }}
+  kubectl port-forward svc/{{ include "postgresql.fullname" . }}-pgbouncer {{ .Values.pgbouncer.service.port }}:{{ .Values.pgbouncer.service.port }} -n {{ .Release.Namespace }}
   psql -h localhost -p {{ .Values.pgbouncer.service.port }} -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }}
 {{- end }}
 
