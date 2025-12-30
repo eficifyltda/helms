@@ -217,7 +217,11 @@ Check if replication should be enabled (disabled for dev/stg)
 {{- if or (eq $preset "dev") (eq $preset "stg") }}
 {{- false }}
 {{- else }}
-{{- .Values.postgresql.replication.enabled }}
+{{- if .Values.postgresql.replication }}
+{{- .Values.postgresql.replication.enabled | default false }}
+{{- else }}
+{{- false }}
+{{- end }}
 {{- end }}
 {{- end }}
 
@@ -291,7 +295,11 @@ Get service type (public or cluster)
 {{- if .Values.postgresql.exposePublicly.enabled }}
 {{- .Values.postgresql.exposePublicly.serviceType }}
 {{- else }}
-{{- .Values.postgresql.service.type }}
+{{- if .Values.postgresql.service }}
+{{- .Values.postgresql.service.type | default "ClusterIP" }}
+{{- else }}
+{{- "ClusterIP" }}
+{{- end }}
 {{- end }}
 {{- end }}
 
@@ -305,7 +313,11 @@ Get service port (validate not 5432 when public)
 {{- end }}
 {{- .Values.postgresql.exposePublicly.port }}
 {{- else }}
-{{- .Values.postgresql.service.port }}
+{{- if .Values.postgresql.service }}
+{{- .Values.postgresql.service.port | default 5432 }}
+{{- else }}
+{{- 5432 }}
+{{- end }}
 {{- end }}
 {{- end }}
 
@@ -314,8 +326,11 @@ Generate random hostname for Ingress when SSL is enabled
 Format: [random]-db.[hostname-server].eficify.cloud
 */}}
 {{- define "postgresql.ingress.hostname" -}}
-{{- $host := (index .Values.ingress.hosts 0).host }}
-{{- if and .Values.postgresql.ssl.enabled (not $host) }}
+{{- $host := "" }}
+{{- if .Values.ingress.hosts }}
+{{- $host = (index .Values.ingress.hosts 0).host }}
+{{- end }}
+{{- if and .Values.postgresql.ssl .Values.postgresql.ssl.enabled (not $host) }}
 {{- $random := randAlphaNum 8 | lower }}
 {{- $hostnameServer := .Values.ingress.hostnameServer }}
 {{- if not $hostnameServer }}
@@ -333,10 +348,10 @@ Format: [random]-db.[hostname-server].eficify.cloud
 Check if Ingress should be enabled (auto-enable when SSL is enabled)
 */}}
 {{- define "postgresql.ingress.enabled" -}}
-{{- if .Values.postgresql.ssl.enabled }}
+{{- if and .Values.postgresql.ssl .Values.postgresql.ssl.enabled }}
 {{- true }}
 {{- else }}
-{{- .Values.ingress.enabled }}
+{{- .Values.ingress.enabled | default false }}
 {{- end }}
 {{- end }}
 
@@ -345,7 +360,7 @@ Generate hostname for Read Replica Ingress
 Format: [random]-db-ra.[hostname-server].eficify.cloud
 */}}
 {{- define "postgresql.readReplica.ingress.hostname" -}}
-{{- if and .Values.postgresql.ssl.enabled .Values.readReplica.enabled }}
+{{- if and .Values.postgresql.ssl .Values.postgresql.ssl.enabled .Values.readReplica.enabled }}
 {{- $random := randAlphaNum 8 | lower }}
 {{- $hostnameServer := .Values.ingress.hostnameServer }}
 {{- if not $hostnameServer }}
@@ -361,7 +376,7 @@ Format: [random]-db-ra.[hostname-server].eficify.cloud
 Check if Read Replica Ingress should be enabled
 */}}
 {{- define "postgresql.readReplica.ingress.enabled" -}}
-{{- if and .Values.readReplica.enabled .Values.postgresql.ssl.enabled }}
+{{- if and .Values.readReplica.enabled .Values.postgresql.ssl .Values.postgresql.ssl.enabled }}
 {{- true }}
 {{- else }}
 {{- false }}

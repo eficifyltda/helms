@@ -23,7 +23,7 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.postgresql.securityContext | nindent 8 }}
-      {{- if .Values.postgresql.affinity.podAntiAffinity.enabled }}
+      {{- if and .Values.postgresql.affinity .Values.postgresql.affinity.podAntiAffinity .Values.postgresql.affinity.podAntiAffinity.enabled }}
       affinity:
         podAntiAffinity:
           {{- if eq .Values.postgresql.affinity.podAntiAffinity.type "required" }}
@@ -47,7 +47,7 @@ spec:
                   operator: In
                   values:
                   - postgresql
-              topologyKey: {{ .Values.postgresql.affinity.podAntiAffinity.topologyKey }}
+              topologyKey: {{ .Values.postgresql.affinity.podAntiAffinity.topologyKey | default "kubernetes.io/hostname" }}
       {{- end }}
       containers:
       - name: postgresql
@@ -75,7 +75,7 @@ spec:
               key: postgres-db
         - name: PGDATA
           value: /var/lib/postgresql/data/pgdata
-        {{- if .Values.postgresql.ssl.enabled }}
+        {{- if and .Values.postgresql.ssl .Values.postgresql.ssl.enabled }}
         - name: PGSSLMODE
           value: {{ .Values.postgresql.ssl.mode }}
         {{- end }}
@@ -85,7 +85,7 @@ spec:
         - name: config
           mountPath: /etc/postgresql/postgresql.conf
           subPath: postgresql.conf
-        {{- if and .Values.postgresql.ssl.enabled .Values.postgresql.ssl.secretName }}
+        {{- if and .Values.postgresql.ssl .Values.postgresql.ssl.enabled .Values.postgresql.ssl.secretName }}
         - name: ssl-certs
           mountPath: /var/lib/postgresql/data/ssl
           readOnly: true
@@ -96,22 +96,22 @@ spec:
             - /bin/sh
             - -c
             - pg_isready -U $(POSTGRES_USER) -d $(POSTGRES_DB)
-          initialDelaySeconds: {{ .Values.postgresql.healthCheck.liveness.initialDelaySeconds }}
-          periodSeconds: {{ .Values.postgresql.healthCheck.liveness.periodSeconds }}
-          timeoutSeconds: {{ .Values.postgresql.healthCheck.liveness.timeoutSeconds }}
-          successThreshold: {{ .Values.postgresql.healthCheck.liveness.successThreshold }}
-          failureThreshold: {{ .Values.postgresql.healthCheck.liveness.failureThreshold }}
+          initialDelaySeconds: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.liveness }}{{ .Values.postgresql.healthCheck.liveness.initialDelaySeconds | default 30 }}{{ else }}{{ 30 }}{{ end }}{{ else }}{{ 30 }}{{ end }}
+          periodSeconds: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.liveness }}{{ .Values.postgresql.healthCheck.liveness.periodSeconds | default 10 }}{{ else }}{{ 10 }}{{ end }}{{ else }}{{ 10 }}{{ end }}
+          timeoutSeconds: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.liveness }}{{ .Values.postgresql.healthCheck.liveness.timeoutSeconds | default 5 }}{{ else }}{{ 5 }}{{ end }}{{ else }}{{ 5 }}{{ end }}
+          successThreshold: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.liveness }}{{ .Values.postgresql.healthCheck.liveness.successThreshold | default 1 }}{{ else }}{{ 1 }}{{ end }}{{ else }}{{ 1 }}{{ end }}
+          failureThreshold: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.liveness }}{{ .Values.postgresql.healthCheck.liveness.failureThreshold | default 3 }}{{ else }}{{ 3 }}{{ end }}{{ else }}{{ 3 }}{{ end }}
         readinessProbe:
           exec:
             command:
             - /bin/sh
             - -c
             - pg_isready -U $(POSTGRES_USER) -d $(POSTGRES_DB)
-          initialDelaySeconds: {{ .Values.postgresql.healthCheck.readiness.initialDelaySeconds }}
-          periodSeconds: {{ .Values.postgresql.healthCheck.readiness.periodSeconds }}
-          timeoutSeconds: {{ .Values.postgresql.healthCheck.readiness.timeoutSeconds }}
-          successThreshold: {{ .Values.postgresql.healthCheck.readiness.successThreshold }}
-          failureThreshold: {{ .Values.postgresql.healthCheck.readiness.failureThreshold }}
+          initialDelaySeconds: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.readiness }}{{ .Values.postgresql.healthCheck.readiness.initialDelaySeconds | default 5 }}{{ else }}{{ 5 }}{{ end }}{{ else }}{{ 5 }}{{ end }}
+          periodSeconds: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.readiness }}{{ .Values.postgresql.healthCheck.readiness.periodSeconds | default 5 }}{{ else }}{{ 5 }}{{ end }}{{ else }}{{ 5 }}{{ end }}
+          timeoutSeconds: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.readiness }}{{ .Values.postgresql.healthCheck.readiness.timeoutSeconds | default 3 }}{{ else }}{{ 3 }}{{ end }}{{ else }}{{ 3 }}{{ end }}
+          successThreshold: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.readiness }}{{ .Values.postgresql.healthCheck.readiness.successThreshold | default 1 }}{{ else }}{{ 1 }}{{ end }}{{ else }}{{ 1 }}{{ end }}
+          failureThreshold: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.readiness }}{{ .Values.postgresql.healthCheck.readiness.failureThreshold | default 3 }}{{ else }}{{ 3 }}{{ end }}{{ else }}{{ 3 }}{{ end }}
         resources:
           {{- include "postgresql.resources" . | nindent 10 }}
         command:
@@ -129,7 +129,7 @@ spec:
       - name: config
         configMap:
           name: {{ include "postgresql.fullname" . }}-postgresql-config
-      {{- if .Values.postgresql.ssl.enabled }}
+      {{- if and .Values.postgresql.ssl .Values.postgresql.ssl.enabled }}
       {{- if .Values.postgresql.ssl.secretName }}
       - name: ssl-certs
         secret:

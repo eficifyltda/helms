@@ -589,7 +589,7 @@ redis:
   # Configuration
   config:
     maxmemory: "512mb"
-    maxmemory-policy: "allkeys-lru"
+    maxmemory_policy: "allkeys-lru"
     save: "900 1 300 10 60 10000"
     appendonly: "yes"
     appendfsync: "everysec"

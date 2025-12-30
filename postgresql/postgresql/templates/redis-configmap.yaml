@@ -9,7 +9,7 @@ data:
   redis.conf: |
     # Redis Configuration
     maxmemory {{ .Values.redis.config.maxmemory }}
-    maxmemory-policy {{ .Values.redis.config.maxmemory-policy }}
+    maxmemory-policy {{ .Values.redis.config.maxmemory_policy }}
     save {{ .Values.redis.config.save }}
     appendonly {{ .Values.redis.config.appendonly }}
     appendfsync {{ .Values.redis.config.appendfsync }}

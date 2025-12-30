@@ -1,6 +1,6 @@
 apiVersion: v2
 name: postgresql
-description: A Helm chart for PostgreSQL with PgBouncer, automated backups, and Prometheus monitoring (Proprietário: Eficify)
+description: "A Helm chart for PostgreSQL with PgBouncer, automated backups, and Prometheus monitoring (Proprietário: Eficify)"
 type: application
 version: 1.5.1
 appVersion: "latest"
