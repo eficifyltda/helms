@@ -352,7 +352,7 @@ pgbouncer:
   enabled: true
   image:
     repository: pgbouncer/pgbouncer
-    tag: "1.21"
+    tag: "1.22.0"
     pullPolicy: IfNotPresent
   
   # Connection pool settings
