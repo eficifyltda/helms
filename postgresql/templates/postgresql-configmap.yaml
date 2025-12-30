@@ -1,0 +1,61 @@
+{{- if .Values.postgresql.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postgresql.fullname" . }}-postgresql-config
+  labels:
+    {{- include "postgresql.postgresql.labels" . | nindent 4 }}
+data:
+  postgresql.conf: |
+    # PostgreSQL Configuration
+    max_connections = {{ include "postgresql.config.value" (list "max_connections" .) }}
+    shared_buffers = {{ include "postgresql.config.value" (list "shared_buffers" .) }}
+    effective_cache_size = {{ include "postgresql.config.value" (list "effective_cache_size" .) }}
+    maintenance_work_mem = {{ include "postgresql.config.value" (list "maintenance_work_mem" .) }}
+    checkpoint_completion_target = {{ include "postgresql.config.value" (list "checkpoint_completion_target" .) }}
+    wal_buffers = {{ include "postgresql.config.value" (list "wal_buffers" .) }}
+    default_statistics_target = {{ include "postgresql.config.value" (list "default_statistics_target" .) }}
+    random_page_cost = {{ include "postgresql.config.value" (list "random_page_cost" .) }}
+    effective_io_concurrency = {{ include "postgresql.config.value" (list "effective_io_concurrency" .) }}
+    work_mem = {{ include "postgresql.config.value" (list "work_mem" .) }}
+    min_wal_size = {{ include "postgresql.config.value" (list "min_wal_size" .) }}
+    max_wal_size = {{ include "postgresql.config.value" (list "max_wal_size" .) }}
+    max_worker_processes = {{ include "postgresql.config.value" (list "max_worker_processes" .) }}
+    max_parallel_workers_per_gather = {{ include "postgresql.config.value" (list "max_parallel_workers_per_gather" .) }}
+    max_parallel_workers = {{ include "postgresql.config.value" (list "max_parallel_workers" .) }}
+    max_parallel_maintenance_workers = {{ include "postgresql.config.value" (list "max_parallel_maintenance_workers" .) }}
+    
+    # SSL/TLS settings
+    {{- if .Values.postgresql.ssl.enabled }}
+    ssl = on
+    ssl_cert_file = '/var/lib/postgresql/data/ssl/server.crt'
+    ssl_key_file = '/var/lib/postgresql/data/ssl/server.key'
+    {{- if .Values.postgresql.ssl.secretName }}
+    ssl_ca_file = '/var/lib/postgresql/data/ssl/ca.crt'
+    {{- end }}
+    {{- end }}
+    
+    # Replication settings
+    {{- if include "postgresql.replication.enabled" . }}
+    wal_level = replica
+    max_wal_senders = {{ .Values.postgresql.replication.max_wal_senders }}
+    wal_keep_size = {{ .Values.postgresql.replication.wal_keep_size }}
+    hot_standby = {{ .Values.postgresql.replication.hot_standby }}
+    hot_standby_feedback = {{ .Values.postgresql.replication.hot_standby_feedback }}
+    {{- end }}
+    
+    # Logging
+    logging_collector = on
+    log_directory = 'log'
+    log_filename = 'postgresql-%Y-%m-%d_%H%M%S.log'
+    log_rotation_age = 1d
+    log_rotation_size = 100MB
+    log_min_duration_statement = 1000
+    log_line_prefix = '%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+    log_checkpoints = on
+    log_connections = on
+    log_disconnections = on
+    log_lock_waits = on
+    log_temp_files = 0
+{{- end }}
+
