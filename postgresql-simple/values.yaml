@@ -31,15 +31,15 @@ postgresql:
   maxConnections: 100
   sharedBuffers: "128MB"
   
-  # Volume Permissions
-  volumePermissions:
-    enabled: false
-  
   # Security Context
   securityContext:
     enabled: true
-    runAsUser: 1001
-    fsGroup: 1001
+    runAsUser: 999  # PostgreSQL official image default user
+    fsGroup: 999    # PostgreSQL official image default group
+  
+  # Volume Permissions (auto-enabled when persistence is enabled)
+  volumePermissions:
+    enabled: true  # Enabled by default to fix permissions on new volumes
 
 # PgBouncer Configuration (Optional)
 pgbouncer:
