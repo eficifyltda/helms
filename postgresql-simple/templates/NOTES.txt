@@ -1,17 +1,17 @@
 1. Obter a senha do PostgreSQL:
-   kubectl get secret {{ include "postgresql-simple.fullname" . }}-postgresql \
+   kubectl get secret {{ include "postgresql-simple.postgresql.name" . }} \
      -n {{ .Release.Namespace }} \
      -o jsonpath="{.data.postgres-password}" | base64 -d && echo
 
 2. Conectar ao PostgreSQL:
-   kubectl port-forward svc/{{ include "postgresql-simple.fullname" . }}-postgresql \
+   kubectl port-forward svc/{{ include "postgresql-simple.postgresql.name" . }} \
      5432:5432 -n {{ .Release.Namespace }}
    
    psql -h localhost -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }}
 
 {{- if .Values.pgbouncer.enabled }}
 3. Conectar via PgBouncer:
-   kubectl port-forward svc/{{ include "postgresql-simple.fullname" . }}-pgbouncer \
+   kubectl port-forward svc/{{ include "postgresql-simple.pgbouncer.name" . }} \
      5432:5432 -n {{ .Release.Namespace }}
    
    psql -h localhost -U {{ .Values.postgresql.username }} -d {{ .Values.postgresql.database }}

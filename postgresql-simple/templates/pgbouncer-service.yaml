@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "postgresql-simple.fullname" . }}-pgbouncer
+  name: {{ include "postgresql-simple.pgbouncer.name" . }}
   labels:
     {{- include "postgresql-simple.labels" . | nindent 4 }}
     app.kubernetes.io/component: pgbouncer

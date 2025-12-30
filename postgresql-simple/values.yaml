@@ -30,6 +30,16 @@ postgresql:
   # Configuration
   maxConnections: 100
   sharedBuffers: "128MB"
+  
+  # Volume Permissions
+  volumePermissions:
+    enabled: false
+  
+  # Security Context
+  securityContext:
+    enabled: true
+    runAsUser: 1001
+    fsGroup: 1001
 
 # PgBouncer Configuration (Optional)
 pgbouncer:

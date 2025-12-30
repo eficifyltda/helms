@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "postgresql-simple.fullname" . }}-postgresql
+  name: {{ include "postgresql-simple.postgresql.name" . }}
   labels:
     {{- include "postgresql-simple.labels" . | nindent 4 }}
 spec:
@@ -16,11 +16,14 @@ spec:
         {{- include "postgresql-simple.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: postgresql
     spec:
+      {{- if .Values.postgresql.securityContext.enabled }}
       securityContext:
-        fsGroup: 999
-        runAsUser: 999
-        runAsGroup: 999
+        fsGroup: {{ .Values.postgresql.securityContext.fsGroup }}
+        runAsUser: {{ .Values.postgresql.securityContext.runAsUser }}
+        runAsGroup: {{ .Values.postgresql.securityContext.fsGroup }}
         runAsNonRoot: true
+      {{- end }}
+      {{- if .Values.postgresql.volumePermissions.enabled }}
       initContainers:
       - name: fix-permissions
         image: busybox:1.36
@@ -28,7 +31,7 @@ spec:
         - sh
         - -c
         - |
-          chown -R 999:999 /var/lib/postgresql/data || true
+          chown -R {{ .Values.postgresql.securityContext.runAsUser }}:{{ .Values.postgresql.securityContext.fsGroup }} /var/lib/postgresql/data || true
           chmod 700 /var/lib/postgresql/data || true
         volumeMounts:
         - name: data
@@ -36,18 +39,28 @@ spec:
         securityContext:
           runAsUser: 0
           allowPrivilegeEscalation: false
+      {{- end }}
       containers:
       - name: postgresql
         image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
         imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+        {{- if .Values.postgresql.securityContext.enabled }}
         securityContext:
-          runAsUser: 999
-          runAsGroup: 999
+          runAsUser: {{ .Values.postgresql.securityContext.runAsUser }}
+          runAsGroup: {{ .Values.postgresql.securityContext.fsGroup }}
           runAsNonRoot: true
           allowPrivilegeEscalation: false
           capabilities:
             drop:
             - ALL
+        {{- else }}
+        securityContext:
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        {{- end }}
         ports:
         - name: postgresql
           containerPort: 5432
@@ -56,17 +69,17 @@ spec:
         - name: POSTGRES_USER
           valueFrom:
             secretKeyRef:
-              name: {{ include "postgresql-simple.fullname" . }}-postgresql
+              name: {{ include "postgresql-simple.postgresql.name" . }}
               key: postgres-user
         - name: POSTGRES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: {{ include "postgresql-simple.fullname" . }}-postgresql
+              name: {{ include "postgresql-simple.postgresql.name" . }}
               key: postgres-password
         - name: POSTGRES_DB
           valueFrom:
             secretKeyRef:
-              name: {{ include "postgresql-simple.fullname" . }}-postgresql
+              name: {{ include "postgresql-simple.postgresql.name" . }}
               key: postgres-db
         - name: PGDATA
           value: /var/lib/postgresql/data
@@ -104,11 +117,11 @@ spec:
       - name: data
         {{- if .Values.postgresql.persistence.enabled }}
         persistentVolumeClaim:
-          claimName: {{ include "postgresql-simple.fullname" . }}-postgresql-data
+          claimName: {{ include "postgresql-simple.postgresql.name" . }}-data
         {{- else }}
         emptyDir: {}
         {{- end }}
       - name: config
         configMap:
-          name: {{ include "postgresql-simple.fullname" . }}-postgresql-config
+          name: {{ include "postgresql-simple.postgresql.name" . }}-config
 

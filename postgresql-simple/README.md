@@ -83,10 +83,30 @@ psql -h localhost -U postgres -d postgres
 | `postgresql.database` | Nome do banco | `postgres` |
 | `postgresql.persistence.enabled` | Habilitar PVC | `true` |
 | `postgresql.persistence.size` | Tamanho do PVC | `10Gi` |
+| `postgresql.volumePermissions.enabled` | Habilitar initContainer para corrigir permissões | `false` |
+| `postgresql.securityContext.enabled` | Habilitar security context | `true` |
+| `postgresql.securityContext.runAsUser` | UID do usuário (não root) | `1001` |
+| `postgresql.securityContext.fsGroup` | GID do grupo | `1001` |
 | `pgbouncer.enabled` | Habilitar PgBouncer | `false` |
 | `pgbouncer.poolMode` | Modo do pool | `transaction` |
 | `service.type` | Tipo do Service | `ClusterIP` |
 | `service.port` | Porta do Service | `5432` |
+
+### Security Context
+
+Por padrão, o chart configura o PostgreSQL para **não rodar como root**:
+- `securityContext.enabled: true`
+- `runAsUser: 1001` (não root)
+- `fsGroup: 1001`
+
+Se você precisar corrigir as permissões do volume (especialmente em volumes persistentes novos), habilite:
+```yaml
+postgresql:
+  volumePermissions:
+    enabled: true
+```
+
+**Nota:** A imagem oficial do PostgreSQL usa o usuário 999 por padrão. Se você usar 1001, certifique-se de que o initContainer de permissões está habilitado ou que o volume já tem as permissões corretas.
 
 ## Desinstalação
 

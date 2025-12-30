@@ -12,8 +12,22 @@ Create a default fully qualified app name.
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- printf "%s-%s" .Release.Name .Chart.Name | trunc 63 | trimSuffix "-" }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
+{{- end }}
+
+{{/*
+PostgreSQL deployment name - simple
+*/}}
+{{- define "postgresql-simple.postgresql.name" -}}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+PgBouncer deployment name - simple
+*/}}
+{{- define "postgresql-simple.pgbouncer.name" -}}
+{{- printf "%s-pgbouncer" .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*

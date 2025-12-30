@@ -44,18 +44,18 @@ spec:
           protocol: TCP
         env:
         - name: DATABASES_HOST
-          value: {{ include "postgresql-simple.fullname" . }}-postgresql
+          value: {{ include "postgresql-simple.postgresql.name" . }}
         - name: DATABASES_PORT
           value: "{{ .Values.service.port }}"
         - name: DATABASES_USER
           valueFrom:
             secretKeyRef:
-              name: {{ include "postgresql-simple.fullname" . }}-postgresql
+              name: {{ include "postgresql-simple.postgresql.name" . }}
               key: postgres-user
         - name: DATABASES_PASSWORD
           valueFrom:
             secretKeyRef:
-              name: {{ include "postgresql-simple.fullname" . }}-postgresql
+              name: {{ include "postgresql-simple.postgresql.name" . }}
               key: postgres-password
         - name: DATABASES_DBNAME
           value: {{ .Values.postgresql.database }}
@@ -81,9 +81,9 @@ spec:
         emptyDir: {}
       - name: config-source
         configMap:
-          name: {{ include "postgresql-simple.fullname" . }}-pgbouncer-config
+          name: {{ include "postgresql-simple.pgbouncer.name" . }}-config
       - name: userlist-source
         secret:
-          secretName: {{ include "postgresql-simple.fullname" . }}-pgbouncer
+          secretName: {{ include "postgresql-simple.pgbouncer.name" . }}
 {{- end }}
 
