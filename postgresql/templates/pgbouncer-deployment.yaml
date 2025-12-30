@@ -30,6 +30,8 @@ spec:
           containerPort: 9127
           protocol: TCP
         env:
+        - name: DATABASES
+          value: "host={{ include "postgresql.fullname" . }}-postgresql port={{ include "postgresql.service.port" . }} dbname={{ .Values.postgresql.database }}"
         - name: POSTGRES_USER
           valueFrom:
             secretKeyRef:
