@@ -3,7 +3,7 @@ postgresql:
   enabled: true
   image:
     repository: postgres
-    tag: "latest"
+    tag: "18.1"
     pullPolicy: IfNotPresent
   
   # Database configuration
@@ -314,7 +314,7 @@ readReplica:
   enabled: false
   image:
     repository: postgres
-    tag: "latest"
+    tag: "18.1"
     pullPolicy: IfNotPresent
   
   # Database configuration (usa as mesmas credenciais do master)
@@ -352,7 +352,7 @@ pgbouncer:
   enabled: true
   image:
     repository: pgbouncer/pgbouncer
-    tag: "1.22.0"
+    tag: "1.15.0"
     pullPolicy: IfNotPresent
   
   # Connection pool settings

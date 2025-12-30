@@ -7,7 +7,7 @@ postgresql:
   enabled: true
   image:
     repository: postgres
-    tag: "latest"
+    tag: "18.1"
     pullPolicy: IfNotPresent
   
   # Database configuration
@@ -85,7 +85,7 @@ readReplica:
   enabled: true # Habilitar read replica em produção
   image:
     repository: postgres
-    tag: "latest"
+    tag: "18.1"
     pullPolicy: IfNotPresent
   
   resources:
@@ -116,7 +116,7 @@ pgbouncer:
   enabled: true
   image:
     repository: pgbouncer/pgbouncer
-    tag: "1.22.0"
+    tag: "1.15.0"
     pullPolicy: IfNotPresent
   
   # Configurações otimizadas para produção

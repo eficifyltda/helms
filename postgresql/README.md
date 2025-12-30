@@ -36,7 +36,7 @@ Chart Helm completo para PostgreSQL com PgBouncer, backups automatizados e monit
 helm install postgresql .
 
 # Com tamanho específico
-helm install postgresql . --set postgresql.sizePreset=large
+helm install postgresql . --set postgresql.sizePreset=large -n postgresql
 
 # Com senha customizada
 helm install postgresql . --set postgresql.password=minhasenha
