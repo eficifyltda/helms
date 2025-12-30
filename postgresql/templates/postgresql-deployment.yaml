@@ -66,11 +66,18 @@ spec:
         command: ['sh', '-c']
         args:
           - |
+            set -e
+            # Garantir que o diretório pai existe
+            mkdir -p /var/lib/postgresql/data
+            # Criar o diretório pgdata se não existir
+            # O PostgreSQL fará initdb automaticamente se o diretório estiver vazio
             if [ ! -d /var/lib/postgresql/data/pgdata ]; then
               mkdir -p /var/lib/postgresql/data/pgdata
-              chown -R 999:999 /var/lib/postgresql/data
-              chmod 700 /var/lib/postgresql/data/pgdata
             fi
+            # Definir permissões para o usuário postgres (999)
+            chown -R 999:999 /var/lib/postgresql/data
+            chmod 700 /var/lib/postgresql/data/pgdata
+            chmod 755 /var/lib/postgresql/data
         securityContext:
           runAsUser: 0
           allowPrivilegeEscalation: false
