@@ -1,0 +1,39 @@
+{{- if .Values.pgbouncer.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postgresql-simple.fullname" . }}-pgbouncer-config
+  labels:
+    {{- include "postgresql-simple.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer
+data:
+  pgbouncer.ini: |
+    [databases]
+    {{ .Values.postgresql.database }} = host={{ include "postgresql-simple.fullname" . }}-postgresql port={{ .Values.service.port }} dbname={{ .Values.postgresql.database }}
+    
+    [pgbouncer]
+    pool_mode = {{ .Values.pgbouncer.poolMode }}
+    listen_addr = 0.0.0.0
+    listen_port = 5432
+    auth_type = plain
+    auth_file = /etc/pgbouncer/userlist.txt
+    admin_users = {{ .Values.postgresql.username }}
+    stats_users = {{ .Values.postgresql.username }}
+    
+    max_client_conn = {{ .Values.pgbouncer.maxClientConn }}
+    default_pool_size = {{ .Values.pgbouncer.defaultPoolSize }}
+    
+    server_idle_timeout = 600
+    server_connect_timeout = 15
+    server_login_retry = 15
+    query_timeout = 0
+    query_wait_timeout = 120
+    client_idle_timeout = 0
+    client_login_timeout = 60
+    autodb_idle_timeout = 3600
+    
+    log_connections = 1
+    log_disconnections = 1
+    log_pooler_errors = 1
+{{- end }}
+

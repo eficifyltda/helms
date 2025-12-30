@@ -1,0 +1,89 @@
+{{- if .Values.pgbouncer.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "postgresql-simple.fullname" . }}-pgbouncer
+  labels:
+    {{- include "postgresql-simple.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "postgresql-simple.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: pgbouncer
+  template:
+    metadata:
+      labels:
+        {{- include "postgresql-simple.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: pgbouncer
+    spec:
+      initContainers:
+      - name: copy-config
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          cp /config/pgbouncer.ini /etc/pgbouncer/pgbouncer.ini
+          cp /userlist/userlist.txt /etc/pgbouncer/userlist.txt
+        volumeMounts:
+        - name: config-source
+          mountPath: /config
+        - name: userlist-source
+          mountPath: /userlist
+        - name: config
+          mountPath: /etc/pgbouncer
+      containers:
+      - name: pgbouncer
+        image: "{{ .Values.pgbouncer.image.repository }}:{{ .Values.pgbouncer.image.tag }}"
+        imagePullPolicy: {{ .Values.pgbouncer.image.pullPolicy }}
+        ports:
+        - name: pgbouncer
+          containerPort: 5432
+          protocol: TCP
+        env:
+        - name: DATABASES_HOST
+          value: {{ include "postgresql-simple.fullname" . }}-postgresql
+        - name: DATABASES_PORT
+          value: "{{ .Values.service.port }}"
+        - name: DATABASES_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "postgresql-simple.fullname" . }}-postgresql
+              key: postgres-user
+        - name: DATABASES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "postgresql-simple.fullname" . }}-postgresql
+              key: postgres-password
+        - name: DATABASES_DBNAME
+          value: {{ .Values.postgresql.database }}
+        volumeMounts:
+        - name: config
+          mountPath: /etc/pgbouncer
+        resources:
+          {{- toYaml .Values.pgbouncer.resources | nindent 10 }}
+        livenessProbe:
+          tcpSocket:
+            port: pgbouncer
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          tcpSocket:
+            port: pgbouncer
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+      volumes:
+      - name: config
+        emptyDir: {}
+      - name: config-source
+        configMap:
+          name: {{ include "postgresql-simple.fullname" . }}-pgbouncer-config
+      - name: userlist-source
+        secret:
+          secretName: {{ include "postgresql-simple.fullname" . }}-pgbouncer
+{{- end }}
+

@@ -1,0 +1,60 @@
+# PostgreSQL Simple - Development Optimized
+
+# PostgreSQL Configuration
+postgresql:
+  image:
+    repository: postgres
+    tag: "18.1"
+    pullPolicy: IfNotPresent
+  
+  # Database credentials
+  username: postgres
+  password: "" # If empty, will be auto-generated
+  database: postgres
+  
+  # Resources
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  
+  # Storage
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: "" # Uses default storage class
+  
+  # Configuration
+  maxConnections: 100
+  sharedBuffers: "128MB"
+
+# PgBouncer Configuration (Optional)
+pgbouncer:
+  enabled: false
+  image:
+    repository: pgbouncer/pgbouncer
+    tag: "1.15.0"
+    pullPolicy: IfNotPresent
+  
+  # Connection pool settings
+  poolMode: transaction # session, transaction, statement
+  maxClientConn: 100
+  defaultPoolSize: 25
+  
+  # Resources
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "50m"
+    limits:
+      memory: "128Mi"
+      cpu: "100m"
+
+# Service
+service:
+  type: ClusterIP
+  port: 5432
+

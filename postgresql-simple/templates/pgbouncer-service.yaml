@@ -1,0 +1,20 @@
+{{- if .Values.pgbouncer.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "postgresql-simple.fullname" . }}-pgbouncer
+  labels:
+    {{- include "postgresql-simple.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: pgbouncer
+    protocol: TCP
+    name: pgbouncer
+  selector:
+    {{- include "postgresql-simple.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer
+{{- end }}
+

@@ -67,13 +67,8 @@ spec:
         - sh
         - -c
         - |
-          if [ -d /var/lib/postgresql/data ]; then
-            chown -R 999:999 /var/lib/postgresql/data
-            chmod 700 /var/lib/postgresql/data
-          else
-            echo "Directory /var/lib/postgresql/data does not exist"
-            exit 1
-          fi
+          chown -R 999:999 /var/lib/postgresql/data || true
+          chmod 700 /var/lib/postgresql/data || true
         volumeMounts:
         - name: data
           mountPath: /var/lib/postgresql/data

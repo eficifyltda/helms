@@ -1,0 +1,7 @@
+apiVersion: v2
+name: postgresql-simple
+description: A simple PostgreSQL Helm chart optimized for development
+type: application
+version: 0.1.0
+appVersion: "18.1"
+
