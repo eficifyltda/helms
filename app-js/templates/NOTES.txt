@@ -1,0 +1,67 @@
+1. Backend Service:
+   kubectl port-forward svc/{{ include "app-js.backend.name" . }} \
+     {{ .Values.services.backend.port }}:{{ .Values.services.backend.port }} -n {{ .Release.Namespace }}
+
+2. Frontend Service:
+   kubectl port-forward svc/{{ include "app-js.frontend.name" . }} \
+     {{ .Values.services.frontend.port }}:{{ .Values.services.frontend.port }} -n {{ .Release.Namespace }}
+
+{{- if and .Values.frontend.enabled .Values.exposeFrontend.enabled }}
+3. Frontend está exposto publicamente via LoadBalancer:
+   Service: {{ include "app-js.frontend.name" . }}-public
+   Tipo: {{ .Values.exposeFrontend.serviceType | default "LoadBalancer" }}
+   Porta: {{ .Values.exposeFrontend.port }}
+   
+   Obter IP externo:
+   kubectl get svc {{ include "app-js.frontend.name" . }}-public -n {{ .Release.Namespace }}
+   
+   Acessar:
+   http://<EXTERNAL-IP>
+{{- end }}
+
+{{- if and .Values.ingress.enabled .Values.ingress.frontend.enabled }}
+4. Frontend está acessível via Ingress (Traefik):
+   URL: https://{{ .Values.ingress.frontend.host }}
+   Ingress: {{ include "app-js.frontend.name" . }}
+{{- end }}
+
+{{- if and .Values.ingress.enabled .Values.ingress.backend.enabled }}
+5. Backend está acessível via Ingress (Traefik):
+   URL: https://{{ .Values.ingress.backend.host }}
+   Ingress: {{ include "app-js.backend.name" . }}
+{{- end }}
+
+{{- if and .Values.monitoring.enabled .Values.monitoring.serviceMonitor.enabled }}
+6. Monitoramento Prometheus:
+   {{- if and .Values.monitoring.backend.enabled .Values.backend.enabled }}
+   - ServiceMonitor Backend: {{ include "app-js.backend.name" . }}
+     Métricas: http://{{ include "app-js.backend.name" . }}:{{ .Values.services.backend.port }}{{ .Values.monitoring.backend.path }}
+   {{- end }}
+   {{- if and .Values.monitoring.frontend.enabled .Values.frontend.enabled }}
+   - ServiceMonitor Frontend: {{ include "app-js.frontend.name" . }}
+     Métricas: http://{{ include "app-js.frontend.name" . }}:{{ .Values.services.frontend.port }}{{ .Values.monitoring.frontend.path }}
+   {{- end }}
+   
+   Verificar ServiceMonitors:
+   kubectl get servicemonitor -n {{ .Release.Namespace }}
+{{- end }}
+
+{{- if .Values.postgresql.enabled }}
+7. PostgreSQL Database:
+   Service: {{ include "app-js.postgresql.name" . }}
+   Port: {{ .Values.postgresql.service.port }}
+   
+   Conectar via port-forward:
+   kubectl port-forward svc/{{ include "app-js.postgresql.name" . }} \
+     {{ .Values.postgresql.service.port }}:{{ .Values.postgresql.service.port }} -n {{ .Release.Namespace }}
+   
+   Connection String (interno):
+   postgresql://{{ .Values.postgresql.username }}:<password>@{{ include "app-js.postgresql.name" . }}:{{ .Values.postgresql.service.port }}/{{ .Values.postgresql.database }}
+   
+   {{- if not .Values.postgresql.password }}
+   Obter senha gerada automaticamente:
+   kubectl get secret {{ include "app-js.postgresql.name" . }} -n {{ .Release.Namespace }} \
+     -o jsonpath="{.data.postgres-password}" | base64 -d && echo
+   {{- end }}
+{{- end }}
+

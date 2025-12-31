@@ -1,0 +1,23 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.serviceMonitor.enabled .Values.monitoring.frontend.enabled .Values.frontend.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "app-js.frontend.name" . }}
+  labels:
+    {{- include "app-js.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+    {{- with .Values.monitoring.serviceMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "app-js.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: frontend
+  endpoints:
+  - port: {{ .Values.monitoring.frontend.port }}
+    interval: {{ .Values.monitoring.serviceMonitor.interval }}
+    scrapeTimeout: {{ .Values.monitoring.serviceMonitor.scrapeTimeout }}
+    path: {{ .Values.monitoring.frontend.path }}
+{{- end }}
+

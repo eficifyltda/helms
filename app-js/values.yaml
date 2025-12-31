@@ -1,0 +1,159 @@
+# JavaScript Application - Backend + Frontend
+
+# Backend Configuration
+backend:
+  enabled: true
+  image:
+    repository: node
+    tag: "20-alpine"
+    pullPolicy: IfNotPresent
+  
+  # Resources
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  
+  # Port
+  port: 3000
+  
+  # Environment variables
+  env: {}
+    # Example:
+    # DATABASE_URL: "postgresql://user:pass@host:5432/db"
+    # API_KEY: "your-api-key"
+
+# Frontend Configuration (Next.js)
+frontend:
+  enabled: true
+  image:
+    repository: node
+    tag: "20-alpine"
+    pullPolicy: IfNotPresent
+    # For Next.js, you can also use: nextjs/nextjs or your custom image
+  
+  # Resources
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  
+  # Port
+  port: 3000
+  
+  # Environment variables
+  env: {}
+    # Example:
+    # NEXT_PUBLIC_API_URL: "http://app-js-backend:3000"
+    # NEXT_PUBLIC_APP_NAME: "My App"
+  
+  # Command override (optional - if empty, uses image default CMD)
+  # Example for Next.js:
+  # command:
+  #   - npm
+  #   - run
+  #   - dev
+  command: []
+
+# Services
+services:
+  backend:
+    type: ClusterIP
+    port: 3000
+  
+  frontend:
+    type: ClusterIP
+    port: 3000
+
+# Expose Frontend publicly (optional)
+exposeFrontend:
+  enabled: true
+  serviceType: LoadBalancer # LoadBalancer or NodePort
+  port: 80 # Public port
+
+# Ingress Configuration (Traefik)
+ingress:
+  enabled: true
+  className: traefik
+  
+  # Frontend Ingress
+  frontend:
+    enabled: true
+    host: passkey-front.s4160.eficify.cloud
+    tls: true
+  
+  # Backend Ingress
+  backend:
+    enabled: true
+    host: passkey-back.s4160.eficify.cloud
+    tls: true
+
+# Prometheus Monitoring
+monitoring:
+  enabled: true
+  
+  # Prometheus ServiceMonitor
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+    # Labels adicionais para o ServiceMonitor (ex: release: prometheus)
+    # labels:
+    #   release: prometheus
+  
+  # Backend metrics configuration
+  backend:
+    enabled: true
+    path: /metrics  # Path onde as métricas são expostas
+    port: http      # Porta do service (http)
+  
+  # Frontend metrics configuration
+  frontend:
+    enabled: true
+    path: /metrics  # Path onde as métricas são expostas
+    port: http      # Porta do service (http)
+
+# PostgreSQL Configuration (Development)
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "18.1"
+    pullPolicy: IfNotPresent
+  
+  # Database credentials
+  username: postgres
+  password: "" # If empty, will be auto-generated
+  database: postgres
+  
+  # Resources
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+  
+  # Storage
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: "" # Uses default storage class
+  
+  # Configuration
+  maxConnections: 100
+  sharedBuffers: "128MB"
+  
+  # Service
+  service:
+    type: ClusterIP
+    port: 5432
+

@@ -1,0 +1,26 @@
+{{- if .Values.frontend.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "app-js.frontend.name" . }}
+  labels:
+    {{- include "app-js.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+  {{- if and .Values.monitoring.enabled .Values.monitoring.frontend.enabled }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: {{ .Values.services.frontend.port | quote }}
+    prometheus.io/path: {{ .Values.monitoring.frontend.path | quote }}
+  {{- end }}
+spec:
+  type: {{ .Values.services.frontend.type }}
+  ports:
+  - port: {{ .Values.services.frontend.port }}
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    {{- include "app-js.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+{{- end }}
+

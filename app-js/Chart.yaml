@@ -1,0 +1,7 @@
+apiVersion: v2
+name: app-js
+description: A simple Helm chart for JavaScript applications (Backend + Frontend Next.js)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
