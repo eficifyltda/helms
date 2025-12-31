@@ -1,0 +1,102 @@
+# n8n Configuration
+n8n:
+  enabled: true
+  image:
+    repository: n8nio/n8n
+    tag: "2.1.4"
+    pullPolicy: IfNotPresent
+  
+  # Resources
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+  
+  # Port
+  port: 5678
+  
+  # Environment variables
+  env:
+    # Database connection will be automatically configured
+    DB_TYPE: postgresdb
+    N8N_PORT: "5678"
+    N8N_PROTOCOL: "http"
+    N8N_HOST: "0.0.0.0"
+    # Webhook URL (will be set based on ingress if enabled)
+    # WEBHOOK_URL: "https://n8n.s4160.eficify.cloud/"
+    # Optional: Set timezone
+    # GENERIC_TIMEZONE: "America/Sao_Paulo"
+    # Optional: Enable basic auth
+    # N8N_BASIC_AUTH_ACTIVE: "true"
+    # N8N_BASIC_AUTH_USER: "admin"
+    # N8N_BASIC_AUTH_PASSWORD: "changeme"
+
+# PostgreSQL Configuration (optimized for n8n)
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "18.1"
+    pullPolicy: IfNotPresent
+  
+  # Database credentials
+  username: n8n
+  password: "" # If empty, will be auto-generated
+  database: n8n
+  
+  # Resources (optimized for n8n)
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+  
+  # Storage
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: "" # Uses default storage class
+  
+  # Configuration (optimized for n8n)
+  maxConnections: 200
+  sharedBuffers: "512MB"
+  effectiveCacheSize: "1536MB"
+  maintenanceWorkMem: "128MB"
+  workMem: "16MB"
+  
+  # Service
+  service:
+    type: ClusterIP
+    port: 5432
+
+# n8n Service
+service:
+  type: ClusterIP
+  port: 5678
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: traefik
+  host: n8n.s4160.eficify.cloud
+  tls: true
+  annotations: {
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  }
+
+# Prometheus Monitoring
+monitoring:
+  enabled: false
+  
+  # Prometheus ServiceMonitor
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+

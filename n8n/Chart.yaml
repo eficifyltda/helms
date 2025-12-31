@@ -1,0 +1,7 @@
+apiVersion: v2
+name: n8n
+description: A Helm chart for n8n with PostgreSQL
+type: application
+version: 0.1.0
+appVersion: "2.1.4"
+
