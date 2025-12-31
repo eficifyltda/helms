@@ -1,0 +1,36 @@
+1. Get the Metabase URL by running these commands:
+{{- if .Values.ingress.enabled }}
+{{- if .Values.ingress.tls }}
+  https://{{ .Values.ingress.host }}
+{{- else }}
+  http://{{ .Values.ingress.host }}
+{{- end }}
+{{- else }}
+  export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ include "metabase.metabase.name" . }} --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+  echo "Metabase URL: http://$SERVICE_IP:{{ .Values.service.port }}"
+{{- end }}
+
+2. Wait for Metabase to be ready:
+  kubectl wait --for=condition=ready pod -l app.kubernetes.io/name={{ include "metabase.name" . }} -n {{ .Release.Namespace }} --timeout=300s
+
+3. Access Metabase:
+{{- if .Values.ingress.enabled }}
+  Open your browser and navigate to the URL above.
+{{- else }}
+  Use port-forward to access Metabase locally:
+  kubectl port-forward svc/{{ include "metabase.metabase.name" . }} {{ .Values.service.port }}:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+  Then open http://localhost:{{ .Values.service.port }} in your browser.
+{{- end }}
+
+4. First-time setup:
+  - The first time you access Metabase, you'll be prompted to create an admin account
+  - Metabase will automatically connect to the PostgreSQL database
+  - The database connection is pre-configured and ready to use
+
+5. PostgreSQL connection details:
+  Host: {{ include "metabase.postgresql.name" . }}
+  Port: {{ .Values.postgresql.service.port }}
+  Database: {{ .Values.postgresql.database }}
+  Username: {{ .Values.postgresql.username }}
+  Password: (stored in secret {{ include "metabase.postgresql.name" . }})
+

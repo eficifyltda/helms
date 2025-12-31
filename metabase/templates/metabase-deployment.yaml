@@ -1,0 +1,85 @@
+{{- if .Values.metabase.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "metabase.metabase.name" . }}
+  labels:
+    {{- include "metabase.labels" . | nindent 4 }}
+    app.kubernetes.io/component: metabase
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "metabase.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: metabase
+  template:
+    metadata:
+      labels:
+        {{- include "metabase.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: metabase
+    spec:
+      containers:
+      - name: metabase
+        image: "{{ .Values.metabase.image.repository }}:{{ .Values.metabase.image.tag }}"
+        imagePullPolicy: {{ .Values.metabase.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.metabase.port }}
+          protocol: TCP
+        env:
+        - name: MB_DB_TYPE
+          value: {{ .Values.metabase.env.MB_DB_TYPE | quote }}
+        - name: MB_DB_DBNAME
+          value: {{ .Values.postgresql.database | quote }}
+        - name: MB_DB_PORT
+          value: {{ .Values.postgresql.service.port | quote }}
+        - name: MB_DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "metabase.postgresql.name" . }}
+              key: postgres-user
+        - name: MB_DB_PASS
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "metabase.postgresql.name" . }}
+              key: postgres-password
+        - name: MB_DB_HOST
+          value: {{ include "metabase.postgresql.name" . }}
+        - name: MB_JETTY_HOST
+          value: {{ .Values.metabase.env.MB_JETTY_HOST | quote }}
+        - name: MB_JETTY_PORT
+          value: {{ .Values.metabase.env.MB_JETTY_PORT | quote }}
+        {{- if .Values.metabase.env.JAVA_TIMEZONE }}
+        - name: JAVA_TIMEZONE
+          value: {{ .Values.metabase.env.JAVA_TIMEZONE | quote }}
+        {{- end }}
+        {{- range $key, $value := .Values.metabase.env }}
+        {{- if and (ne $key "MB_DB_TYPE") (ne $key "MB_JETTY_HOST") (ne $key "MB_JETTY_PORT") (ne $key "JAVA_TIMEZONE") }}
+        - name: {{ $key }}
+          value: {{ $value | quote }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.metabase.javaOptions }}
+        - name: JAVA_OPTS
+          value: {{ .Values.metabase.javaOptions | quote }}
+        {{- end }}
+        resources:
+          {{- toYaml .Values.metabase.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+{{- end }}
+

@@ -1,0 +1,98 @@
+# Metabase Configuration
+metabase:
+  enabled: true
+  image:
+    repository: metabase/metabase
+    tag: "v0.58.x"
+    pullPolicy: IfNotPresent
+  
+  # Resources
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+  
+  # Port
+  port: 3000
+  
+  # Environment variables
+  env:
+    # Database connection will be automatically configured
+    MB_DB_TYPE: postgres
+    MB_JETTY_HOST: "0.0.0.0"
+    MB_JETTY_PORT: "3000"
+    # Optional: Set timezone
+    # JAVA_TIMEZONE: "America/Sao_Paulo"
+  
+  # Java options for Metabase
+  javaOptions: "-Xmx1g -Xms512m"
+
+# PostgreSQL Configuration (optimized for Metabase)
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "18.1"
+    pullPolicy: IfNotPresent
+  
+  # Database credentials
+  username: metabase
+  password: "" # If empty, will be auto-generated
+  database: metabase
+  
+  # Resources (optimized for Metabase)
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+  
+  # Storage
+  persistence:
+    enabled: true
+    size: 20Gi
+    storageClass: "" # Uses default storage class
+  
+  # Configuration (optimized for Metabase)
+  maxConnections: 200
+  sharedBuffers: "512MB"
+  effectiveCacheSize: "1536MB"
+  maintenanceWorkMem: "128MB"
+  workMem: "16MB"
+  
+  # Service
+  service:
+    type: ClusterIP
+    port: 5432
+
+# Metabase Service
+service:
+  type: ClusterIP
+  port: 3000
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: traefik
+  host: metabase.s4160.eficify.cloud
+  tls: true
+  annotations: {
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  }
+
+# Prometheus Monitoring
+monitoring:
+  enabled: false
+  
+  # Prometheus ServiceMonitor
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+

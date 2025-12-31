@@ -1,0 +1,7 @@
+apiVersion: v2
+name: metabase
+description: A Helm chart for Metabase with PostgreSQL
+type: application
+version: 0.1.0
+appVersion: "v0.50.0"
+
