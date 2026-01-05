@@ -391,11 +391,18 @@ kube-prometheus-stack:
 # GRAFANA INGRESS CONFIGURATION
 # =============================================================================
 # Configuração do Ingress para expor o Grafana externamente
+# O Ingress está SEMPRE habilitado com TLS
 grafanaIngress:
-  enabled: true
+  # Hostname base para construir o domínio
+  # Se null/vazio, tentará obter automaticamente do hostname da máquina
+  # O domínio final será: grafana.[hostname].eficify.cloud
+  # Pode ser passado via: --set grafanaIngress.hostname=$(hostname) ou variável de ambiente
+  hostname: null
   
-  # Domínio do Grafana
-  host: grafana.s4125.eficify.cloud
+  # Domínio completo do Grafana (construído automaticamente se não especificado)
+  # Padrão: grafana.[hostname].eficify.cloud
+  # Se especificar um host customizado, ele será usado ao invés do padrão
+  host: ""  # Deixe vazio para usar o padrão grafana.[hostname].eficify.cloud
   
   # Ingress Class (padrão: traefik para k3s)
   ingressClassName: traefik
@@ -408,7 +415,7 @@ grafanaIngress:
     traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
   
-  # TLS Configuration
+  # TLS Configuration (sempre habilitado)
   tls:
     enabled: true
     secretName: grafana-tls
@@ -424,15 +431,28 @@ grafanaIngress:
 # CERT-MANAGER INTEGRATION
 # =============================================================================
 # Configuração para integração com cert-manager existente
-# NOTA: Este chart NÃO instala cert-manager, apenas integra com ele
+# 
+# ⚠️ IMPORTANTE: Este chart NÃO instala cert-manager!
+# O cert-manager deve estar JÁ INSTALADO no cluster antes de usar este chart.
+# Este chart apenas integra com o cert-manager existente através do ClusterIssuer.
+#
+# Para instalar cert-manager separadamente:
+#   helm repo add jetstack https://charts.jetstack.io
+#   helm repo update
+#   helm install cert-manager jetstack/cert-manager \
+#     --namespace cert-manager --create-namespace --set installCRDs=true
+#
 certManager:
-  # ClusterIssuer a ser usado (deve existir no cluster)
+  # ClusterIssuer a ser usado (DEVE EXISTIR no cluster)
+  # Este ClusterIssuer deve ser criado manualmente antes de instalar este chart
   clusterIssuer: letsencrypt-prod
   
   # Tipo de issuer (letsencrypt-prod, letsencrypt-staging, ou custom)
+  # Apenas informativo, não usado para criar recursos
   issuerType: letsencrypt-prod
   
-  # Configuração para Let's Encrypt Production
+  # Configuração para Let's Encrypt (apenas informativo)
+  # Estas configurações são apenas para referência, não são usadas para criar recursos
   letsencrypt:
     prod:
       email: admin@eficify.cloud  # IMPORTANTE: Altere para seu email

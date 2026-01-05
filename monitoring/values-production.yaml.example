@@ -11,20 +11,29 @@ namespace:
   create: true
 
 # Grafana Ingress - Configuração de produção
+# O Ingress está sempre habilitado com TLS
 grafanaIngress:
-  enabled: true
-  host: grafana.seudominio.com  # Altere para seu domínio
+  # Opção 1: Usar padrão grafana.[hostname].eficify.cloud
+  hostname: producao  # Domínio final: grafana.producao.eficify.cloud
+  
+  # Opção 2: Especificar host completo customizado
+  # host: grafana.seudominio.com
+  
   ingressClassName: traefik
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
     traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
     traefik.ingress.kubernetes.io/router.tls: "true"
   tls:
-    enabled: true
+    enabled: true  # Sempre habilitado
     secretName: grafana-tls
 
-# Cert-Manager
+# Cert-Manager Integration
+# ⚠️ IMPORTANTE: Este chart NÃO instala cert-manager!
+# O cert-manager deve estar JÁ INSTALADO no cluster antes de usar este chart.
+# Este chart apenas integra com o cert-manager existente através do ClusterIssuer.
 certManager:
+  # ClusterIssuer que DEVE EXISTIR no cluster (criado manualmente)
   clusterIssuer: letsencrypt-prod
   issuerType: letsencrypt-prod
   letsencrypt:

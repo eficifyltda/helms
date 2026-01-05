@@ -93,6 +93,32 @@ Grafana service name
 {{- end }}
 
 {{/*
+Grafana ingress hostname helper
+Obtém o hostname do values. Se null, deve ser passado via --set ou script helper
+*/}}
+{{- define "monitor.grafana.ingress.hostname" -}}
+{{- if .Values.grafanaIngress.hostname }}
+{{- .Values.grafanaIngress.hostname }}
+{{- else }}
+{{- "s4125" }}
+{{- end }}
+{{- end }}
+
+{{/*
+Grafana ingress hostname
+Construi o hostname automaticamente: grafana.[hostname].eficify.cloud
+Ou usa o host customizado se especificado
+*/}}
+{{- define "monitor.grafana.ingress.host" -}}
+{{- if .Values.grafanaIngress.host }}
+{{- .Values.grafanaIngress.host }}
+{{- else }}
+{{- $hostname := include "monitor.grafana.ingress.hostname" . }}
+{{- printf "grafana.%s.eficify.cloud" $hostname }}
+{{- end }}
+{{- end }}
+
+{{/*
 Grafana ingress annotations
 */}}
 {{- define "monitor.grafana.ingress.annotations" -}}
@@ -111,7 +137,7 @@ Grafana ingress TLS hosts
 */}}
 {{- define "monitor.grafana.ingress.tlsHosts" -}}
 {{- if .Values.grafanaIngress.tls.enabled }}
-- {{ .Values.grafanaIngress.host }}
+- {{ include "monitor.grafana.ingress.host" . }}
 {{- end }}
 {{- end }}
 

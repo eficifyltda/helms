@@ -13,6 +13,7 @@ Chart Helm completo e bem estruturado para monitoramento de um cluster k3s singl
 - [Upgrade](#upgrade)
 - [Desinstalação](#desinstalação)
 - [Configuração de Domínio e TLS](#configuração-de-domínio-e-tls)
+- [Hostname Automático](#hostname-automático)
 - [Exemplos de Uso](#exemplos-de-uso)
 - [Troubleshooting](#troubleshooting)
 
@@ -33,7 +34,7 @@ O chart é totalmente configurável via `values.yaml` e segue as melhores práti
 - Kubernetes >= 1.24
 - k3s (testado em single-node, mas preparado para multi-node)
 - Helm >= 3.0
-- cert-manager (opcional, para TLS automático)
+- cert-manager **já instalado no cluster** (para TLS automático - este chart NÃO instala cert-manager)
 - Ingress Controller (Traefik padrão no k3s)
 
 ## 🧩 Componentes
@@ -71,6 +72,33 @@ helm dependency update
 
 ### 3. Instalação Básica
 
+#### Opção A: Usando Script Helper (Recomendado - hostname automático)
+
+O script detecta automaticamente o hostname da máquina:
+
+```bash
+./install.sh
+```
+
+Ou com parâmetros customizados:
+
+```bash
+./install.sh monitor monitoring --set certManager.clusterIssuer=letsencrypt-prod
+```
+
+#### Opção B: Instalação Manual com Hostname Automático
+
+```bash
+# Obter hostname automaticamente
+HOSTNAME=$(hostname)
+helm install monitor . \
+  --namespace monitoring \
+  --create-namespace \
+  --set grafanaIngress.hostname="${HOSTNAME}"
+```
+
+#### Opção C: Instalação Manual (hostname padrão: s4125)
+
 ```bash
 helm install monitor . --namespace monitoring --create-namespace
 ```
@@ -81,7 +109,7 @@ helm install monitor . --namespace monitoring --create-namespace
 helm install monitor . \
   --namespace monitoring \
   --create-namespace \
-  --set grafanaIngress.host=grafana.seudominio.com \
+  --set grafanaIngress.hostname=meuhostname \
   --set certManager.clusterIssuer=letsencrypt-prod
 ```
 
@@ -110,20 +138,33 @@ namespace:
 
 #### Grafana Ingress
 
+O Ingress do Grafana está **sempre habilitado com TLS**. O domínio segue o padrão `grafana.[hostname].eficify.cloud`.
+
+**Hostname Automático**: Se `hostname` for `null`, o chart tentará usar o hostname da máquina. Use os scripts `install.sh` ou `upgrade.sh` para detecção automática, ou passe via `--set grafanaIngress.hostname=$(hostname)`.
+
 ```yaml
 grafanaIngress:
-  enabled: true
-  host: grafana.s4125.eficify.cloud
+  # Hostname base (null = tenta obter automaticamente, fallback: s4125)
+  # Domínio final: grafana.[hostname].eficify.cloud
+  # Para obter automaticamente: use ./install.sh ou --set grafanaIngress.hostname=$(hostname)
+  hostname: null
+  
+  # Ou especifique um host customizado completo
+  # host: grafana.seudominio.com
+  
   ingressClassName: traefik
   tls:
-    enabled: true
+    enabled: true  # Sempre habilitado
     secretName: grafana-tls
 ```
 
 #### Cert-Manager Integration
 
+**IMPORTANTE**: Este chart **NÃO instala** cert-manager. O cert-manager deve estar **já instalado** no cluster antes de usar este chart.
+
 ```yaml
 certManager:
+  # ClusterIssuer que deve existir no cluster
   clusterIssuer: letsencrypt-prod
   issuerType: letsencrypt-prod
 ```
@@ -171,9 +212,9 @@ features:
 
 ## 🌐 Acesso ao Grafana
 
-### Via Ingress (Recomendado)
+### Via Ingress (Sempre Habilitado)
 
-Se o Ingress estiver habilitado:
+O Ingress está sempre habilitado com TLS. O domínio padrão é `grafana.[hostname].eficify.cloud` (onde `hostname` é configurável via `grafanaIngress.hostname`, padrão: `s4125`).
 
 1. Acesse: `https://grafana.s4125.eficify.cloud` (ou seu domínio configurado)
 2. Login:
@@ -185,9 +226,9 @@ kubectl get secret -n monitoring monitor-kube-prometheus-grafana \
   -o jsonpath="{.data.admin-password}" | base64 -d && echo
 ```
 
-### Via Port-Forward
+### Via Port-Forward (Alternativa)
 
-Se o Ingress não estiver habilitado:
+Para acesso local sem usar o Ingress:
 
 ```bash
 kubectl port-forward -n monitoring svc/monitor-kube-prometheus-grafana 3000:80
@@ -252,9 +293,48 @@ kubectl delete pvc -n monitoring --all
 
 ### Pré-requisitos
 
-1. cert-manager instalado no cluster
-2. ClusterIssuer configurado (ex: `letsencrypt-prod`)
-3. Domínio apontando para o IP do cluster
+**IMPORTANTE**: Este chart **NÃO instala** cert-manager. Você deve instalar o cert-manager separadamente antes de usar este chart.
+
+1. **cert-manager já instalado no cluster** (instale separadamente se necessário)
+2. **ClusterIssuer configurado** (ex: `letsencrypt-prod`) - deve existir no cluster
+3. **Domínio apontando para o IP do cluster**
+
+### Instalação do cert-manager (se necessário)
+
+Se você ainda não tem cert-manager instalado, instale-o separadamente:
+
+```bash
+# Adicionar repositório
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+
+# Instalar cert-manager
+helm install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --set installCRDs=true
+
+# Aguardar cert-manager estar pronto
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/instance=cert-manager -n cert-manager --timeout=300s
+
+# Criar ClusterIssuer (exemplo)
+kubectl apply -f - <<EOF
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: seu-email@dominio.com
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          class: traefik
+EOF
+```
 
 ### Configuração Básica
 
@@ -262,13 +342,17 @@ Edite `values.yaml` ou crie um arquivo de override:
 
 ```yaml
 grafanaIngress:
-  enabled: true
-  host: grafana.seudominio.com
+  # Opção 1: Usar padrão grafana.[hostname].eficify.cloud
+  hostname: seuhostname
+  
+  # Opção 2: Especificar host completo customizado
+  # host: grafana.seudominio.com
+  
   ingressClassName: traefik
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
   tls:
-    enabled: true
+    enabled: true  # Sempre habilitado
     secretName: grafana-tls
 
 certManager:
@@ -307,6 +391,56 @@ kubectl get events -n cert-manager --sort-by='.lastTimestamp'
 kubectl logs -n cert-manager -l app=cert-manager
 ```
 
+## 🖥️ Hostname Automático
+
+O chart suporta detecção automática do hostname da máquina. Se `grafanaIngress.hostname` for `null`, o chart usará um fallback padrão (`s4125`). Para obter o hostname automaticamente, use uma das opções abaixo:
+
+### Opção 1: Scripts Helper (Recomendado)
+
+Os scripts `install.sh` e `upgrade.sh` detectam automaticamente o hostname:
+
+```bash
+# Instalação
+./install.sh
+
+# Upgrade
+./upgrade.sh
+```
+
+### Opção 2: Via Linha de Comando
+
+```bash
+# Instalação
+HOSTNAME=$(hostname)
+helm install monitor . \
+  --namespace monitoring \
+  --create-namespace \
+  --set grafanaIngress.hostname="${HOSTNAME}"
+
+# Upgrade
+HOSTNAME=$(hostname)
+helm upgrade monitor . \
+  --namespace monitoring \
+  --set grafanaIngress.hostname="${HOSTNAME}"
+```
+
+### Opção 3: Via values.yaml
+
+```yaml
+grafanaIngress:
+  hostname: null  # Usa fallback padrão (s4125)
+  # Ou especifique diretamente:
+  # hostname: meuhostname
+```
+
+### Como Funciona
+
+1. Se `hostname` estiver definido em `values.yaml` ou via `--set`, esse valor é usado
+2. Se `hostname` for `null` e você usar os scripts helper, o hostname é detectado automaticamente
+3. Se `hostname` for `null` e você não passar via `--set`, o fallback padrão `s4125` é usado
+
+**Domínio resultante**: `grafana.[hostname].eficify.cloud`
+
 ## 📝 Exemplos de Uso
 
 ### Exemplo 1: Instalação Básica
@@ -321,7 +455,7 @@ helm install monitor . --namespace monitoring --create-namespace
 helm install monitor . \
   --namespace monitoring \
   --create-namespace \
-  --set grafanaIngress.host=grafana.seudominio.com \
+  --set grafanaIngress.hostname=meuhostname \
   --set storage.storageClass=local-path \
   --set storage.sizes.prometheus=100Gi
 ```
@@ -341,9 +475,12 @@ Crie `values-production.yaml`:
 
 ```yaml
 grafanaIngress:
-  host: grafana.producao.com
+  # Usar padrão: grafana.producao.eficify.cloud
+  hostname: producao
+  # Ou host customizado:
+  # host: grafana.producao.com
   tls:
-    enabled: true
+    enabled: true  # Sempre habilitado
 
 certManager:
   clusterIssuer: letsencrypt-prod
@@ -502,9 +639,10 @@ Este chart é fornecido como está, sem garantias.
 1. **Senha Padrão**: Altere a senha padrão do Grafana em produção!
 2. **Storage**: Configure o StorageClass apropriado para seu ambiente
 3. **Recursos**: Ajuste os recursos (CPU/memória) conforme a capacidade do cluster
-4. **TLS**: Certifique-se de que o cert-manager está configurado corretamente
-5. **Backup**: Configure backups regulares dos PVCs em produção
-6. **Retenção**: Ajuste a retenção do Prometheus conforme necessário
+4. **cert-manager**: ⚠️ Este chart **NÃO instala** cert-manager. O cert-manager deve estar **já instalado** no cluster antes de usar este chart. Veja a seção [Configuração de Domínio e TLS](#configuração-de-domínio-e-tls) para instruções de instalação.
+5. **ClusterIssuer**: Certifique-se de que o ClusterIssuer especificado em `certManager.clusterIssuer` existe no cluster antes de instalar este chart.
+6. **Backup**: Configure backups regulares dos PVCs em produção
+7. **Retenção**: Ajuste a retenção do Prometheus conforme necessário
 
 ## 🎯 Próximos Passos
 
