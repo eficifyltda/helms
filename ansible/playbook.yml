@@ -77,7 +77,6 @@
           args:
             creates: /usr/local/bin/k3s
           when: k3s_version != "latest"
-          warn: false
         
         - name: Install latest k3s server
           shell: |
@@ -85,7 +84,6 @@
           args:
             creates: /usr/local/bin/k3s
           when: k3s_version == "latest"
-          warn: false
         
         - name: Wait for k3s to be ready
           wait_for:
