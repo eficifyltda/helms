@@ -1,0 +1,499 @@
+# Default values for monitor chart
+# Este chart instala um stack completo de monitoramento para k3s usando kube-prometheus-stack
+
+# Namespace onde os recursos serão criados
+namespace:
+  name: monitoring
+  create: true
+
+# Configuração global de labels e annotations
+global:
+  labels: {}
+  annotations: {}
+
+# =============================================================================
+# KUBE-PROMETHEUS-STACK CONFIGURATION
+# =============================================================================
+# Configuração do subchart kube-prometheus-stack
+# Documentação completa: https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack
+
+kube-prometheus-stack:
+  enabled: true
+
+  # =============================================================================
+  # PROMETHEUS CONFIGURATION
+  # =============================================================================
+  prometheus:
+    enabled: true
+    
+    # Configuração do Prometheus Operator
+    prometheusSpec:
+      # Retenção de dados (padrão: 15 dias)
+      retention: 15d
+      
+      # Retenção de alertas
+      retentionSize: 50GB
+      
+      # Intervalo de scrape
+      scrapeInterval: 30s
+      scrapeTimeout: 10s
+      
+      # Recursos do Prometheus
+      resources:
+        requests:
+          cpu: 500m
+          memory: 2Gi
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+      
+      # Persistência de dados
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: ""  # Usa o StorageClass padrão do cluster
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 50Gi  # Ajuste conforme necessário
+      
+      # Service Account
+      serviceAccount:
+        create: true
+        name: ""
+      
+      # Configuração de segurança
+      securityContext:
+        runAsUser: 1000
+        runAsNonRoot: true
+        fsGroup: 2000
+      
+      # Node selector (útil para single-node, mas preparado para multi-node)
+      nodeSelector: {}
+      
+      # Tolerations (para single-node geralmente não necessário)
+      tolerations: []
+      
+      # Affinity (preparado para multi-node)
+      affinity: {}
+      
+      # Replicas (para produção multi-node, considerar 2+)
+      replicas: 1
+      
+      # Configuração de alertas
+      evaluationInterval: 30s
+      
+      # External labels
+      externalLabels: {}
+      
+      # Configuração de remote write (opcional, para Thanos ou outros backends)
+      remoteWrite: []
+      
+      # Configuração de remote read (opcional)
+      remoteRead: []
+
+  # =============================================================================
+  # ALERTMANAGER CONFIGURATION
+  # =============================================================================
+  alertmanager:
+    enabled: true
+    
+    # Configuração do Alertmanager
+    alertmanagerSpec:
+      # Retenção de alertas
+      retention: 120h
+      
+      # Recursos do Alertmanager
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+      
+      # Persistência (opcional)
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: ""
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 10Gi
+      
+      # Replicas
+      replicas: 1
+      
+      # Service Account
+      serviceAccount:
+        create: true
+        name: ""
+      
+      # Configuração de segurança
+      securityContext:
+        runAsUser: 1000
+        runAsNonRoot: true
+        fsGroup: 2000
+      
+      # Node selector
+      nodeSelector: {}
+      
+      # Tolerations
+      tolerations: []
+      
+      # Affinity
+      affinity: {}
+
+  # =============================================================================
+  # GRAFANA CONFIGURATION
+  # =============================================================================
+  grafana:
+    enabled: true
+    
+    # Configuração do Grafana
+    adminUser: admin
+    adminPassword: admin  # IMPORTANTE: Altere em produção!
+    
+    # Persistência de dados do Grafana
+    persistence:
+      enabled: true
+      type: pvc
+      storageClassName: ""  # Usa o StorageClass padrão
+      accessModes:
+        - ReadWriteOnce
+      size: 10Gi
+    
+    # Recursos do Grafana
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    
+    # Service Account
+    serviceAccount:
+      create: true
+      name: ""
+    
+    # Configuração de segurança
+    securityContext:
+      runAsUser: 472
+      runAsGroup: 472
+      fsGroup: 472
+    
+    # Node selector
+    nodeSelector: {}
+    
+    # Tolerations
+    tolerations: []
+    
+    # Affinity
+    affinity: {}
+    
+    # Configuração do datasource Prometheus
+    # NOTA: O kube-prometheus-stack já configura automaticamente o datasource do Prometheus
+    # O datasource será criado apontando para: http://{release-name}-kube-prometheus-prometheus:9090
+    # Para adicionar datasources adicionais ou customizar, use a configuração abaixo:
+    # datasources:
+    #   datasources.yaml:
+    #     apiVersion: 1
+    #     datasources:
+    #       - name: Prometheus
+    #         type: prometheus
+    #         access: proxy
+    #         url: http://monitor-kube-prometheus-prometheus:9090
+    #         isDefault: true
+    #         editable: true
+    
+    # Dashboards padrão do Kubernetes
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+          - name: 'default'
+            orgId: 1
+            folder: ''
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/default
+    
+    dashboards:
+      default:
+        # Dashboards do Kubernetes serão carregados automaticamente pelo kube-prometheus-stack
+        kubernetes-cluster-monitoring:
+          gnetId: 7249
+          revision: 1
+          datasource: Prometheus
+        kubernetes-pods:
+          gnetId: 6417
+          revision: 1
+          datasource: Prometheus
+        node-exporter:
+          gnetId: 1860
+          revision: 27
+          datasource: Prometheus
+    
+    # Configuração do Service
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 3000
+      annotations: {}
+    
+    # Configuração de ingress (será sobrescrito pelo template grafana-ingress.yaml)
+    ingress:
+      enabled: false  # Desabilitado aqui, controlado pelo nosso template
+
+  # =============================================================================
+  # NODE EXPORTER CONFIGURATION
+  # =============================================================================
+  nodeExporter:
+    enabled: true
+    
+    # Recursos do Node Exporter
+    resources:
+      requests:
+        cpu: 100m
+        memory: 30Mi
+      limits:
+        cpu: 200m
+        memory: 50Mi
+    
+    # Service Account
+    serviceAccount:
+      create: true
+      name: ""
+    
+    # Configuração de segurança
+    securityContext:
+      runAsUser: 65534
+      runAsNonRoot: true
+      fsGroup: 65534
+    
+    # Node selector
+    nodeSelector: {}
+    
+    # Tolerations
+    tolerations: []
+    
+    # Affinity
+    affinity: {}
+
+  # =============================================================================
+  # KUBE-STATE-METRICS CONFIGURATION
+  # =============================================================================
+  kubeStateMetrics:
+    enabled: true
+    
+    # Recursos do kube-state-metrics
+    resources:
+      requests:
+        cpu: 100m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+    
+    # Service Account
+    serviceAccount:
+      create: true
+      name: ""
+    
+    # Configuração de segurança
+    securityContext:
+      runAsUser: 65534
+      runAsNonRoot: true
+      fsGroup: 65534
+    
+    # Node selector
+    nodeSelector: {}
+    
+    # Tolerations
+    tolerations: []
+    
+    # Affinity
+    affinity: {}
+
+  # =============================================================================
+  # PROMETHEUS OPERATOR CONFIGURATION
+  # =============================================================================
+  prometheusOperator:
+    enabled: true
+    
+    # Recursos do Prometheus Operator
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    
+    # Service Account
+    serviceAccount:
+      create: true
+      name: ""
+    
+    # Configuração de segurança
+    securityContext:
+      runAsUser: 65534
+      runAsNonRoot: true
+      fsGroup: 65534
+    
+    # Node selector
+    nodeSelector: {}
+    
+    # Tolerations
+    tolerations: []
+    
+    # Affinity
+    affinity: {}
+
+  # =============================================================================
+  # DEFAULT RULES AND ALERTS
+  # =============================================================================
+  defaultRules:
+    create: true
+    rules:
+      alertmanager: true
+      etcd: true
+      configReloaders: true
+      general: true
+      k8s: true
+      kubeApiserverAvailability: true
+      kubeApiserverBurnrate: true
+      kubeApiserverHistogram: true
+      kubeApiserverSlos: true
+      kubelet: true
+      kubeProxy: true
+      kubePrometheusGeneral: true
+      kubePrometheusNodeRecording: true
+      kubernetesApps: true
+      kubernetesResources: true
+      kubernetesStorage: true
+      kubernetesSystem: true
+      kubeScheduler: true
+      kubeStateMetrics: true
+      network: true
+      node: true
+      nodeExporterAlerting: true
+      nodeExporterRecording: true
+      prometheus: true
+      prometheusOperator: true
+      time: true
+
+# =============================================================================
+# GRAFANA INGRESS CONFIGURATION
+# =============================================================================
+# Configuração do Ingress para expor o Grafana externamente
+grafanaIngress:
+  enabled: true
+  
+  # Domínio do Grafana
+  host: grafana.s4125.eficify.cloud
+  
+  # Ingress Class (padrão: traefik para k3s)
+  ingressClassName: traefik
+  
+  # Annotations do Ingress
+  annotations:
+    # Cert-manager para TLS automático
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # Traefik annotations (se necessário)
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+  
+  # TLS Configuration
+  tls:
+    enabled: true
+    secretName: grafana-tls
+  
+  # Path (padrão: /)
+  path: /
+  pathType: Prefix
+  
+  # Porta do serviço (padrão: 80)
+  servicePort: 80
+
+# =============================================================================
+# CERT-MANAGER INTEGRATION
+# =============================================================================
+# Configuração para integração com cert-manager existente
+# NOTA: Este chart NÃO instala cert-manager, apenas integra com ele
+certManager:
+  # ClusterIssuer a ser usado (deve existir no cluster)
+  clusterIssuer: letsencrypt-prod
+  
+  # Tipo de issuer (letsencrypt-prod, letsencrypt-staging, ou custom)
+  issuerType: letsencrypt-prod
+  
+  # Configuração para Let's Encrypt Production
+  letsencrypt:
+    prod:
+      email: admin@eficify.cloud  # IMPORTANTE: Altere para seu email
+      server: https://acme-v02.api.letsencrypt.org/directory
+    staging:
+      email: admin@eficify.cloud  # IMPORTANTE: Altere para seu email
+      server: https://acme-staging-v02.api.letsencrypt.org/directory
+
+# =============================================================================
+# STORAGE CONFIGURATION
+# =============================================================================
+# Configuração global de storage
+storage:
+  # StorageClass padrão (vazio = usa o padrão do cluster)
+  storageClass: ""
+  
+  # Tamanhos padrão de PVCs
+  sizes:
+    prometheus: 50Gi
+    alertmanager: 10Gi
+    grafana: 10Gi
+
+# =============================================================================
+# FEATURE FLAGS
+# =============================================================================
+# Flags para habilitar/desabilitar componentes individuais
+features:
+  prometheus: true
+  alertmanager: true
+  grafana: true
+  nodeExporter: true
+  kubeStateMetrics: true
+  prometheusOperator: true
+
+# =============================================================================
+# RESOURCE LIMITS (GLOBAL OVERRIDE)
+# =============================================================================
+# Limites globais de recursos (podem ser sobrescritos por componente)
+globalResources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# =============================================================================
+# NODE SELECTOR AND AFFINITY (GLOBAL)
+# =============================================================================
+# Configurações globais de node selector e affinity
+# Útil para single-node, mas preparado para multi-node
+globalNodeSelector: {}
+globalTolerations: []
+globalAffinity: {}
+
+# =============================================================================
+# SECURITY CONTEXT (GLOBAL)
+# =============================================================================
+# Configurações globais de segurança
+globalSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+

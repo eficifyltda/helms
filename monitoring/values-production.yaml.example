@@ -1,0 +1,149 @@
+# Exemplo de arquivo values-production.yaml
+# Use este arquivo como base para configurações de produção
+# 
+# Uso:
+#   helm install monitor . -f values-production.yaml
+#   helm upgrade monitor . -f values-production.yaml
+
+# Namespace
+namespace:
+  name: monitoring
+  create: true
+
+# Grafana Ingress - Configuração de produção
+grafanaIngress:
+  enabled: true
+  host: grafana.seudominio.com  # Altere para seu domínio
+  ingressClassName: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+  tls:
+    enabled: true
+    secretName: grafana-tls
+
+# Cert-Manager
+certManager:
+  clusterIssuer: letsencrypt-prod
+  issuerType: letsencrypt-prod
+  letsencrypt:
+    prod:
+      email: admin@seudominio.com  # IMPORTANTE: Altere para seu email
+
+# kube-prometheus-stack - Configurações de produção
+kube-prometheus-stack:
+  enabled: true
+
+  # Prometheus - Configurações de produção
+  prometheus:
+    enabled: true
+    prometheusSpec:
+      # Retenção maior para produção
+      retention: 30d
+      retentionSize: 100GB
+      
+      # Recursos maiores para produção
+      resources:
+        requests:
+          cpu: 1000m
+          memory: 4Gi
+        limits:
+          cpu: 4000m
+          memory: 8Gi
+      
+      # Storage maior para produção
+      storageSpec:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: ""  # Ou especifique um StorageClass
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 100Gi  # Ajuste conforme necessário
+      
+      # Para multi-node, considere aumentar replicas
+      replicas: 1
+
+  # Alertmanager - Configurações de produção
+  alertmanager:
+    enabled: true
+    alertmanagerSpec:
+      retention: 168h  # 7 dias
+      resources:
+        requests:
+          cpu: 200m
+          memory: 256Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+      storage:
+        volumeClaimTemplate:
+          spec:
+            storageClassName: ""
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 20Gi
+
+  # Grafana - Configurações de produção
+  grafana:
+    enabled: true
+    # IMPORTANTE: Altere a senha em produção!
+    adminUser: admin
+    adminPassword: senha-segura-aqui  # Use uma senha forte!
+    
+    persistence:
+      enabled: true
+      storageClassName: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+    
+    resources:
+      requests:
+        cpu: 500m
+        memory: 512Mi
+      limits:
+        cpu: 2000m
+        memory: 2Gi
+
+  # Node Exporter
+  nodeExporter:
+    enabled: true
+    resources:
+      requests:
+        cpu: 200m
+        memory: 50Mi
+      limits:
+        cpu: 500m
+        memory: 100Mi
+
+  # kube-state-metrics
+  kubeStateMetrics:
+    enabled: true
+    resources:
+      requests:
+        cpu: 200m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+# Storage - Configurações globais
+storage:
+  storageClass: ""  # Ou especifique um StorageClass específico
+  sizes:
+    prometheus: 100Gi
+    alertmanager: 20Gi
+    grafana: 20Gi
+
+# Feature flags - Todos habilitados
+features:
+  prometheus: true
+  alertmanager: true
+  grafana: true
+  nodeExporter: true
+  kubeStateMetrics: true
+  prometheusOperator: true
+

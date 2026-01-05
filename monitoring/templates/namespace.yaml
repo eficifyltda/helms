@@ -1,0 +1,12 @@
+{{- if .Values.namespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "monitor.namespace" . }}
+  labels:
+    {{- include "monitor.labels" . | nindent 4 }}
+    name: {{ include "monitor.namespace" . }}
+  annotations:
+    {{- include "monitor.annotations" . | nindent 4 }}
+{{- end }}
+

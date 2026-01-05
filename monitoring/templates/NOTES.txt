@@ -1,0 +1,113 @@
+================================================================================
+ MONITOR - Helm Chart de Monitoramento para k3s
+================================================================================
+
+Chart instalado com sucesso!
+
+Componentes instalados:
+{{- if .Values.features.prometheus }}
+  ✓ Prometheus
+{{- end }}
+{{- if .Values.features.alertmanager }}
+  ✓ Alertmanager
+{{- end }}
+{{- if .Values.features.grafana }}
+  ✓ Grafana
+{{- end }}
+{{- if .Values.features.nodeExporter }}
+  ✓ Node Exporter
+{{- end }}
+{{- if .Values.features.kubeStateMetrics }}
+  ✓ kube-state-metrics
+{{- end }}
+
+================================================================================
+ ACESSO AO GRAFANA
+================================================================================
+
+{{- if and .Values.kube-prometheus-stack.grafana.enabled .Values.grafanaIngress.enabled }}
+URL: https://{{ .Values.grafanaIngress.host }}
+
+{{- if .Values.grafanaIngress.tls.enabled }}
+TLS: Habilitado (cert-manager)
+{{- else }}
+TLS: Desabilitado
+{{- end }}
+{{- else }}
+Ingress não habilitado. Para acessar o Grafana:
+
+1. Port-forward:
+   kubectl port-forward -n {{ include "monitor.namespace" . }} svc/{{ include "monitor.grafana.serviceName" . }} 3000:80
+
+2. Acesse: http://localhost:3000
+{{- end }}
+
+================================================================================
+ CREDENCIAIS DO GRAFANA
+================================================================================
+
+Usuário: {{ .Values.kube-prometheus-stack.grafana.adminUser }}
+
+Para obter a senha:
+  kubectl get secret -n {{ include "monitor.namespace" . }} {{ include "monitor.grafana.serviceName" . }} -o jsonpath="{.data.admin-password}" | base64 -d && echo
+
+Ou usando helm:
+  kubectl get secret -n {{ include "monitor.namespace" . }} {{ include "monitor.grafana.serviceName" . }} -o jsonpath="{.data.admin-password}" | base64 -d && echo
+
+IMPORTANTE: Altere a senha padrão em produção!
+
+================================================================================
+ PROMETHEUS
+================================================================================
+
+{{- if .Values.features.prometheus }}
+Para acessar o Prometheus via port-forward:
+  kubectl port-forward -n {{ include "monitor.namespace" . }} svc/{{ include "monitor.prometheus.fullname" . }} 9090:9090
+
+Acesse: http://localhost:9090
+{{- end }}
+
+================================================================================
+ ALERTMANAGER
+================================================================================
+
+{{- if .Values.features.alertmanager }}
+Para acessar o Alertmanager via port-forward:
+  kubectl port-forward -n {{ include "monitor.namespace" . }} svc/{{ include "monitor.fullname" . }}-kube-prometheus-alertmanager 9093:9093
+
+Acesse: http://localhost:9093
+{{- end }}
+
+================================================================================
+ PRÓXIMOS PASSOS
+================================================================================
+
+1. Verifique se todos os pods estão rodando:
+   kubectl get pods -n {{ include "monitor.namespace" . }}
+
+2. Verifique os serviços:
+   kubectl get svc -n {{ include "monitor.namespace" . }}
+
+3. Verifique o Ingress (se habilitado):
+   kubectl get ingress -n {{ include "monitor.namespace" . }}
+
+4. Configure alertas personalizados conforme necessário
+
+5. Importe dashboards adicionais no Grafana
+
+6. Configure notificações no Alertmanager
+
+================================================================================
+ DOCUMENTAÇÃO
+================================================================================
+
+Para mais informações, consulte o README.md do chart.
+
+Para atualizar o chart:
+  helm upgrade {{ .Release.Name }} .
+
+Para desinstalar:
+  helm uninstall {{ .Release.Name }}
+
+================================================================================
+
