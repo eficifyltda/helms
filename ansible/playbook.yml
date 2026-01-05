@@ -32,7 +32,14 @@
 
     - name: Install kubectl
       block:
-        - name: Download kubectl binary
+        - name: Get latest kubectl version
+          uri:
+            url: https://dl.k8s.io/release/stable.txt
+            return_content: true
+          register: kubectl_stable_version
+          when: kubectl_version == "latest"
+        
+        - name: Download kubectl binary (specific version)
           get_url:
             url: "https://dl.k8s.io/release/{{ kubectl_version }}/bin/linux/amd64/kubectl"
             dest: /tmp/kubectl
@@ -40,12 +47,10 @@
           when: kubectl_version != "latest"
         
         - name: Download latest kubectl binary
-          shell: |
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            mv kubectl /tmp/kubectl
-          args:
-            chdir: /tmp
+          get_url:
+            url: "https://dl.k8s.io/release/{{ kubectl_stable_version.content | trim }}/bin/linux/amd64/kubectl"
+            dest: /tmp/kubectl
+            mode: '0755'
           when: kubectl_version == "latest"
         
         - name: Install kubectl to /usr/local/bin
@@ -72,6 +77,7 @@
           args:
             creates: /usr/local/bin/k3s
           when: k3s_version != "latest"
+          warn: false
         
         - name: Install latest k3s server
           shell: |
@@ -79,6 +85,7 @@
           args:
             creates: /usr/local/bin/k3s
           when: k3s_version == "latest"
+          warn: false
         
         - name: Wait for k3s to be ready
           wait_for:
