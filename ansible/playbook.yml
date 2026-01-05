@@ -90,18 +90,65 @@
             path: /etc/rancher/k3s/k3s.yaml
             timeout: 300
         
-        - name: Create .kube directory
+        - name: Get ansible user home directory
+          become: false
+          command: echo $HOME
+          register: user_home
+          changed_when: false
+        
+        - name: Create .kube directory for user
           file:
-            path: "{{ ansible_env.HOME }}/.kube"
+            path: "{{ user_home.stdout }}/.kube"
             state: directory
             mode: '0755'
+            owner: "{{ ansible_user }}"
+            group: "{{ ansible_user }}"
         
-        - name: Copy k3s kubeconfig to user home
-          copy:
+        - name: Read k3s kubeconfig
+          slurp:
             src: /etc/rancher/k3s/k3s.yaml
-            dest: "{{ ansible_env.HOME }}/.kube/config"
+          register: k3s_kubeconfig
+        
+        - name: Decode and prepare kubeconfig content
+          set_fact:
+            kubeconfig_content: "{{ k3s_kubeconfig.content | b64decode }}"
+        
+        - name: Write kubeconfig to user home
+          copy:
+            content: "{{ kubeconfig_content }}"
+            dest: "{{ user_home.stdout }}/.kube/config"
             mode: '0600'
-          when: ansible_env.HOME is defined
+            owner: "{{ ansible_user }}"
+            group: "{{ ansible_user }}"
+        
+        - name: Ensure bashrc exists
+          file:
+            path: "{{ user_home.stdout }}/.bashrc"
+            state: touch
+            owner: "{{ ansible_user }}"
+            group: "{{ ansible_user }}"
+            mode: '0644'
+        
+        - name: Ensure zshrc exists
+          file:
+            path: "{{ user_home.stdout }}/.zshrc"
+            state: touch
+            owner: "{{ ansible_user }}"
+            group: "{{ ansible_user }}"
+            mode: '0644'
+        
+        - name: Set KUBECONFIG environment variable in shell profiles
+          blockinfile:
+            path: "{{ item }}"
+            marker: "# {mark} ANSIBLE MANAGED BLOCK - KUBECONFIG"
+            block: |
+              export KUBECONFIG={{ user_home.stdout }}/.kube/config
+            create: true
+            owner: "{{ ansible_user }}"
+            group: "{{ ansible_user }}"
+          loop:
+            - "{{ user_home.stdout }}/.bashrc"
+            - "{{ user_home.stdout }}/.zshrc"
         
         - name: Verify k3s installation
           command: k3s --version
@@ -112,7 +159,7 @@
           debug:
             msg: "{{ k3s_version_output.stdout }}"
         
-        - name: Verify kubectl can connect to k3s
+        - name: Verify kubectl can connect to k3s (as root)
           command: kubectl get nodes
           register: kubectl_nodes
           changed_when: false
@@ -120,6 +167,18 @@
         - name: Display k3s nodes
           debug:
             msg: "{{ kubectl_nodes.stdout_lines }}"
+        
+        - name: Verify kubectl can connect to k3s (as user)
+          become: false
+          environment:
+            KUBECONFIG: "{{ user_home.stdout }}/.kube/config"
+          command: kubectl get nodes
+          register: kubectl_nodes_user
+          changed_when: false
+        
+        - name: Display k3s nodes (user verification)
+          debug:
+            msg: "{{ kubectl_nodes_user.stdout_lines }}"
 
     - name: Install Helm
       block:
@@ -142,6 +201,36 @@
         - name: Display Helm version
           debug:
             msg: "{{ helm_version_output.stdout }}"
+
+    - name: Setup aliases for kubectl and helm
+      block:
+        - name: Get ansible user home directory for aliases
+          become: false
+          command: echo $HOME
+          register: user_home_aliases
+          changed_when: false
+        
+        - name: Add kubectl and helm aliases to bashrc
+          blockinfile:
+            path: "{{ user_home_aliases.stdout }}/.bashrc"
+            marker: "# {mark} ANSIBLE MANAGED BLOCK - KUBECTL/HELM ALIASES"
+            block: |
+              alias k='kubectl'
+              alias h='helm'
+            create: true
+            owner: "{{ ansible_user }}"
+            group: "{{ ansible_user }}"
+        
+        - name: Add kubectl and helm aliases to zshrc
+          blockinfile:
+            path: "{{ user_home_aliases.stdout }}/.zshrc"
+            marker: "# {mark} ANSIBLE MANAGED BLOCK - KUBECTL/HELM ALIASES"
+            block: |
+              alias k='kubectl'
+              alias h='helm'
+            create: true
+            owner: "{{ ansible_user }}"
+            group: "{{ ansible_user }}"
 
     - name: Summary
       debug:
