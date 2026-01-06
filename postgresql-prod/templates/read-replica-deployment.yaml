@@ -18,8 +18,9 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/read-replica-configmap.yaml") . | sha256sum }}
         checksum/secret: {{ include (print $.Template.BasePath "/postgresql-secret.yaml") . | sha256sum }}
     spec:
-      securityContext:
+      podSecurityContext:
         {{- toYaml .Values.readReplica.securityContext | nindent 8 }}
+        fsGroupChangePolicy: OnRootMismatch
       initContainers:
       - name: init-recovery
         image: "{{ .Values.readReplica.image.repository }}:{{ .Values.readReplica.image.tag }}"

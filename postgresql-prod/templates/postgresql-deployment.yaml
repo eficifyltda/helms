@@ -22,17 +22,19 @@ spec:
       serviceAccountName: {{ include "postgresql.serviceAccountName" . }}
       {{- end }}
       {{- if .Values.postgresql.securityContext }}
-      securityContext:
+      podSecurityContext:
         fsGroup: {{ .Values.postgresql.securityContext.fsGroup | default 999 }}
         runAsUser: {{ .Values.postgresql.securityContext.runAsUser | default 999 }}
         runAsGroup: {{ .Values.postgresql.securityContext.runAsGroup | default 999 }}
         runAsNonRoot: true
+        fsGroupChangePolicy: OnRootMismatch
       {{- else }}
-      securityContext:
+      podSecurityContext:
         fsGroup: 999
         runAsUser: 999
         runAsGroup: 999
         runAsNonRoot: true
+        fsGroupChangePolicy: OnRootMismatch
       {{- end }}
       {{- if and .Values.postgresql.affinity .Values.postgresql.affinity.podAntiAffinity .Values.postgresql.affinity.podAntiAffinity.enabled }}
       affinity:

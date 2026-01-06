@@ -74,7 +74,7 @@ postgresql:
   securityContext:
     runAsUser: 999
     runAsGroup: 999
-    fsGroup: 999  # fsGroup ajusta automaticamente as permissões do volume
+    fsGroup: 999  # fsGroup ajusta automaticamente as permissões do volume (com fsGroupChangePolicy: OnRootMismatch)
   
   # Volume Permissions
   # Habilite apenas se o volume já existir com permissões incorretas
