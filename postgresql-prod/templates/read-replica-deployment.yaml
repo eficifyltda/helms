@@ -126,7 +126,7 @@ spec:
       - name: data
         {{- if .Values.readReplica.persistence.enabled }}
         persistentVolumeClaim:
-          claimName: {{ include "postgresql.fullname" . }}-read-replica-data
+          claimName: {{ include "postgresql.readReplica.pvc.name" . }}
         {{- else }}
         emptyDir: {}
         {{- end }}

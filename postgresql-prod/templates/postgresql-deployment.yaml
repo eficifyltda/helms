@@ -177,7 +177,7 @@ spec:
       - name: data
         {{- if .Values.postgresql.persistence.enabled }}
         persistentVolumeClaim:
-          claimName: {{ include "postgresql.fullname" . }}-postgresql-data
+          claimName: {{ include "postgresql.pvc.name" . }}
         {{- else }}
         emptyDir: {}
         {{- end }}

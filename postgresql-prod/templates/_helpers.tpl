@@ -302,6 +302,22 @@ Get PostgreSQL DNS name
 {{- end }}
 
 {{/*
+Generate unique PVC name using Release.Name and a hash to avoid conflicts
+*/}}
+{{- define "postgresql.pvc.name" -}}
+{{- $hash := printf "%s-%s" .Release.Name .Release.Namespace | sha256sum | trunc 8 }}
+{{- printf "%s-postgresql-data-%s" (include "postgresql.fullname" .) $hash | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Generate unique Read Replica PVC name
+*/}}
+{{- define "postgresql.readReplica.pvc.name" -}}
+{{- $hash := printf "%s-%s" .Release.Name .Release.Namespace | sha256sum | trunc 8 }}
+{{- printf "%s-read-replica-data-%s" (include "postgresql.fullname" .) $hash | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
 Check if Read Replica Ingress should be enabled (auto-enable when SSL is enabled)
 */}}
 {{- define "postgresql.readReplica.ingress.enabled" -}}

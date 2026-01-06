@@ -8,6 +8,8 @@ Chart Helm otimizado para PostgreSQL em produção com **PgBouncer, Replicação
 
 Este chart é uma versão otimizada para produção que já vem com:
 
+- ✅ **PVC com nome único**: Cada release gera um PVC com hash único, evitando conflitos e perda de dados acidental
+
 - ✅ **PgBouncer habilitado por padrão**: Connection pooler para otimização de conexões
 - ✅ **Replicação de Leitura/Escrita habilitada por padrão**: Streaming replication configurado
 - ✅ **Read Replica habilitada por padrão**: Réplica somente leitura para distribuir carga
@@ -17,6 +19,7 @@ Este chart é uma versão otimizada para produção que já vem com:
 - ✅ **Alta Disponibilidade**: Pod Anti-Affinity, Pod Disruption Budget
 - ✅ **Segurança**: SSL/TLS, Network Policies, Service Accounts
 - ✅ **Init Scripts**: Extensões úteis pré-configuradas (pg_stat_statements, uuid-ossp, pg_trgm)
+- ✅ **PVC com nome único**: Cada release gera um PVC com hash único baseado no Release.Name e Namespace, evitando conflitos e perda de dados acidental
 
 ## Pré-requisitos
 
@@ -457,12 +460,21 @@ helm uninstall postgresql-prod
 **⚠️ ATENÇÃO**: A desinstalação não remove os PersistentVolumeClaims por padrão. Para remover completamente:
 
 ```bash
-# Remover PVCs
-kubectl delete pvc -l app.kubernetes.io/name=postgresql-prod
+# Remover PVCs (cada release tem um PVC único com hash)
+kubectl get pvc -n database | grep postgresql-prod
+kubectl delete pvc <nome-do-pvc-único> -n database
+
+# Ou remover todos os PVCs do release
+kubectl delete pvc -l app.kubernetes.io/name=postgresql-prod -n database
 
 # Verificar backups antes de remover (IMPORTANTE!)
 aws s3 ls s3://meu-bucket-producao/ | grep postgresql-backup
 ```
+
+**Nota sobre PVCs únicos**: Cada release do Helm gera um PVC com um nome único contendo um hash baseado no `Release.Name` e `Namespace`. Isso garante que:
+- Novos releases não sobrescrevem dados de releases anteriores
+- Múltiplos releases no mesmo namespace não conflitam
+- Reinstalações não acidentalmente deletam dados existentes
 
 ## Diferenças do Chart Base
 

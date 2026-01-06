@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "postgresql.fullname" . }}-read-replica-data
+  name: {{ include "postgresql.readReplica.pvc.name" . }}
   labels:
     {{- include "postgresql.readReplica.labels" . | nindent 4 }}
 spec:
