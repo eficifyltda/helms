@@ -1,4 +1,5 @@
-{{- if and .Values.kube-prometheus-stack.grafana.enabled .Values.features.grafana }}
+{{- if .Values.kube-prometheus-stack.grafana.enabled }}
+{{- if .Values.features.grafana }}
 {{- if .Values.grafanaIngress.tls.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -17,20 +18,20 @@ spec:
   ingressClassName: {{ .Values.grafanaIngress.ingressClassName }}
   {{- end }}
   tls:
-    - hosts:
-        {{- include "monitor.grafana.ingress.tlsHosts" . | nindent 8 }}
-      secretName: {{ include "monitor.grafana.ingress.tlsSecret" . }}
+  - hosts:
+      {{- include "monitor.grafana.ingress.tlsHosts" . | nindent 6 }}
+    secretName: {{ include "monitor.grafana.ingress.tlsSecret" . }}
   rules:
-    - host: {{ include "monitor.grafana.ingress.host" . }}
-      http:
-        paths:
-          - path: {{ .Values.grafanaIngress.path }}
-            pathType: {{ .Values.grafanaIngress.pathType }}
-            backend:
-              service:
-                name: {{ include "monitor.grafana.serviceName" . }}
-                port:
-                  number: {{ .Values.grafanaIngress.servicePort }}
+  - host: {{ include "monitor.grafana.ingress.host" . }}
+    http:
+      paths:
+      - path: {{ .Values.grafanaIngress.path }}
+        pathType: {{ .Values.grafanaIngress.pathType }}
+        backend:
+          service:
+            name: {{ include "monitor.grafana.serviceName" . }}
+            port:
+              number: {{ .Values.grafanaIngress.servicePort }}
 {{- end }}
 {{- end }}
-
+{{- end }}

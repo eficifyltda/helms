@@ -1,3 +1,0 @@
-# Este diretório contém os subcharts do Helm
-# O kube-prometheus-stack será baixado automaticamente via helm dependency update
-

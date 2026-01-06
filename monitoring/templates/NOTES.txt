@@ -25,22 +25,24 @@ Componentes instalados:
  ACESSO AO GRAFANA
 ================================================================================
 
-{{- if and .Values.kube-prometheus-stack.grafana.enabled .Values.features.grafana }}
-{{- if .Values.grafanaIngress.tls.enabled }}
+{{ if .Values.kube-prometheus-stack.grafana.enabled }}
+{{ if .Values.features.grafana }}
+{{ if .Values.grafanaIngress.tls.enabled }}
 URL: https://{{ include "monitor.grafana.ingress.host" . }}
 
 TLS: Habilitado (cert-manager)
-{{- else }}
+{{ else }}
 Ingress sem TLS configurado. Para acessar o Grafana:
 
 1. Port-forward:
    kubectl port-forward -n {{ include "monitor.namespace" . }} svc/{{ include "monitor.grafana.serviceName" . }} 3000:80
 
 2. Acesse: http://localhost:3000
-{{- end }}
-{{- else }}
+{{ end }}
+{{ else }}
 Grafana não habilitado.
-{{- end }}
+{{ end }}
+{{ end }}
 
 ================================================================================
  CREDENCIAIS DO GRAFANA
