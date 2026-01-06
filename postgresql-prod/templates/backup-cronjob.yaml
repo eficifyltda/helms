@@ -1,0 +1,163 @@
+{{- if include "postgresql.backup.enabled" . }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "postgresql.fullname" . }}-backup
+  labels:
+    {{- include "postgresql.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "postgresql.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: backup
+            image: postgres:{{ .Values.postgresql.image.tag }}
+            imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              
+              # Instalar dependências
+              apt-get update && apt-get install -y awscli gzip && rm -rf /var/lib/apt/lists/*
+              
+              BACKUP_FILE="postgresql-backup-$(date +%Y%m%d-%H%M%S).sql"
+              {{- if .Values.backup.compression }}
+              BACKUP_FILE="${BACKUP_FILE}.gz"
+              {{- end }}
+              
+              echo "Iniciando backup do PostgreSQL..."
+              
+              # Criar backup
+              {{- if .Values.backup.compression }}
+              PGPASSWORD="${POSTGRES_PASSWORD}" pg_dump -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB} | gzip > /tmp/${BACKUP_FILE}
+              {{- else }}
+              PGPASSWORD="${POSTGRES_PASSWORD}" pg_dump -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB} > /tmp/${BACKUP_FILE}
+              {{- end }}
+              
+              # Upload para S3 ou salvar em disco
+              if [ "${BACKUP_DESTINATION}" == "s3" ]; then
+                echo "Enviando backup para S3..."
+                {{- if .Values.backup.s3.useIAMRole }}
+                # Usar IAM role (EKS, etc)
+                aws s3 cp /tmp/${BACKUP_FILE} s3://${S3_BUCKET}/${BACKUP_FILE}
+                {{- else }}
+                # Usar credenciais
+                export AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID}"
+                export AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY}"
+                {{- if .Values.backup.s3.endpoint }}
+                export AWS_ENDPOINT_URL="${S3_ENDPOINT}"
+                aws --endpoint-url=${S3_ENDPOINT} s3 cp /tmp/${BACKUP_FILE} s3://${S3_BUCKET}/${BACKUP_FILE}
+                {{- else }}
+                export AWS_DEFAULT_REGION="${S3_REGION}"
+                aws s3 cp /tmp/${BACKUP_FILE} s3://${S3_BUCKET}/${BACKUP_FILE}
+                {{- end }}
+                {{- end }}
+                echo "Backup enviado com sucesso para s3://${S3_BUCKET}/${BACKUP_FILE}"
+                
+                # Limpar backups antigos
+                echo "Limpando backups antigos (mantendo últimos {{ .Values.backup.retention }})..."
+                {{- if .Values.backup.s3.useIAMRole }}
+                BACKUPS_TO_DELETE=$(aws s3 ls s3://${S3_BUCKET}/ | grep "postgresql-backup-" | sort -r | tail -n +$(({{ .Values.backup.retention }}+1)) | awk '{print $4}')
+                {{- else }}
+                {{- if .Values.backup.s3.endpoint }}
+                BACKUPS_TO_DELETE=$(aws --endpoint-url=${S3_ENDPOINT} s3 ls s3://${S3_BUCKET}/ | grep "postgresql-backup-" | sort -r | tail -n +$(({{ .Values.backup.retention }}+1)) | awk '{print $4}')
+                {{- else }}
+                BACKUPS_TO_DELETE=$(aws s3 ls s3://${S3_BUCKET}/ | grep "postgresql-backup-" | sort -r | tail -n +$(({{ .Values.backup.retention }}+1)) | awk '{print $4}')
+                {{- end }}
+                {{- end }}
+                if [ ! -z "$BACKUPS_TO_DELETE" ]; then
+                  echo "$BACKUPS_TO_DELETE" | while read backup; do
+                    {{- if .Values.backup.s3.useIAMRole }}
+                    aws s3 rm s3://${S3_BUCKET}/${backup}
+                    {{- else }}
+                    {{- if .Values.backup.s3.endpoint }}
+                    aws --endpoint-url=${S3_ENDPOINT} s3 rm s3://${S3_BUCKET}/${backup}
+                    {{- else }}
+                    aws s3 rm s3://${S3_BUCKET}/${backup}
+                    {{- end }}
+                    {{- end }}
+                    echo "Backup antigo removido: ${backup}"
+                  done
+                fi
+              else
+                echo "Salvando backup em disco..."
+                mkdir -p ${BACKUP_DISK_PATH}
+                cp /tmp/${BACKUP_FILE} ${BACKUP_DISK_PATH}/${BACKUP_FILE}
+                echo "Backup salvo em ${BACKUP_DISK_PATH}/${BACKUP_FILE}"
+                
+                # Limpar backups antigos
+                echo "Limpando backups antigos (mantendo últimos {{ .Values.backup.retention }} dias)..."
+                find ${BACKUP_DISK_PATH} -name "postgresql-backup-*.sql*" -mtime +{{ .Values.backup.retention }} -delete
+              fi
+              
+              rm -f /tmp/${BACKUP_FILE}
+              echo "Backup concluído com sucesso!"
+            env:
+            - name: POSTGRES_HOST
+              value: {{ include "postgresql.fullname" . }}-postgresql
+            - name: POSTGRES_PORT
+              value: "{{ include "postgresql.service.port" . }}"
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postgresql.fullname" . }}-postgresql
+                  key: postgres-user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postgresql.fullname" . }}-postgresql
+                  key: postgres-password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postgresql.fullname" . }}-postgresql
+                  key: postgres-db
+            - name: BACKUP_DESTINATION
+              value: {{ .Values.backup.destination | quote }}
+            {{- if eq .Values.backup.destination "s3" }}
+            - name: S3_BUCKET
+              value: {{ .Values.backup.s3.bucket | quote }}
+            - name: S3_REGION
+              value: {{ .Values.backup.s3.region | quote }}
+            {{- if .Values.backup.s3.endpoint }}
+            - name: S3_ENDPOINT
+              value: {{ .Values.backup.s3.endpoint | quote }}
+            {{- end }}
+            {{- if not .Values.backup.s3.useIAMRole }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postgresql.fullname" . }}-backup-s3
+                  key: access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "postgresql.fullname" . }}-backup-s3
+                  key: secret-access-key
+            {{- end }}
+            {{- else }}
+            - name: BACKUP_DISK_PATH
+              value: {{ .Values.backup.disk.path | quote }}
+            {{- end }}
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "100m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+{{- end }}
+

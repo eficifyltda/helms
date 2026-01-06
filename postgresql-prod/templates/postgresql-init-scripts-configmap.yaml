@@ -1,0 +1,14 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.initScripts (and .Values.postgresql.initScripts.enabled .Values.postgresql.initScripts.scripts) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postgresql.fullname" . }}-init-scripts
+  labels:
+    {{- include "postgresql.postgresql.labels" . | nindent 4 }}
+data:
+  {{- range .Values.postgresql.initScripts.scripts }}
+  {{ .name }}: |
+{{ .content | indent 4 }}
+  {{- end }}
+{{- end }}
+

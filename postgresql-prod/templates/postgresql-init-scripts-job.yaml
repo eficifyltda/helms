@@ -1,0 +1,81 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.initScripts (and .Values.postgresql.initScripts.enabled .Values.postgresql.initScripts.scripts) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "postgresql.fullname" . }}-init-scripts
+  labels:
+    {{- include "postgresql.labels" . | nindent 4 }}
+    app.kubernetes.io/component: init-scripts
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "postgresql.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: init-scripts
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: init-scripts
+        image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+        imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+          echo "Aguardando PostgreSQL estar pronto..."
+          until PGPASSWORD="${POSTGRES_PASSWORD}" psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d postgres -c "SELECT 1" > /dev/null 2>&1; do
+            echo "Aguardando PostgreSQL..."
+            sleep 2
+          done
+          echo "PostgreSQL está pronto. Executando scripts de inicialização..."
+          {{- range .Values.postgresql.initScripts.scripts }}
+          echo "Executando script: {{ .name }}"
+          PGPASSWORD="${POSTGRES_PASSWORD}" psql -h ${POSTGRES_HOST} -U ${POSTGRES_USER} -d ${POSTGRES_DB} <<'SCRIPT_EOF'
+          {{- .content | indent 10 }}
+          SCRIPT_EOF
+          {{- end }}
+          echo "Scripts de inicialização concluídos!"
+        env:
+        - name: POSTGRES_HOST
+          value: {{ include "postgresql.fullname" . }}-postgresql
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "postgresql.fullname" . }}-postgresql
+              key: postgres-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "postgresql.fullname" . }}-postgresql
+              key: postgres-password
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "postgresql.fullname" . }}-postgresql
+              key: postgres-db
+        volumeMounts:
+        {{- range .Values.postgresql.initScripts.scripts }}
+        - name: init-script-{{ .name | replace " " "-" | lower | replace "." "-" }}
+          mountPath: /scripts/{{ .name }}
+          subPath: {{ .name }}
+        {{- end }}
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      volumes:
+      {{- range .Values.postgresql.initScripts.scripts }}
+      - name: init-script-{{ .name | replace " " "-" | lower | replace "." "-" }}
+        configMap:
+          name: {{ include "postgresql.fullname" $ }}-init-scripts
+      {{- end }}
+{{- end }}
+

@@ -1,0 +1,187 @@
+{{- if .Values.postgresql.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "postgresql.fullname" . }}-postgresql
+  labels:
+    {{- include "postgresql.postgresql.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "postgresql.postgresql.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "postgresql.postgresql.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/postgresql-configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/postgresql-secret.yaml") . | sha256sum }}
+    spec:
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "postgresql.serviceAccountName" . }}
+      {{- end }}
+      {{- if .Values.postgresql.securityContext }}
+      securityContext:
+        fsGroup: {{ .Values.postgresql.securityContext.fsGroup | default 999 }}
+        runAsUser: {{ .Values.postgresql.securityContext.runAsUser | default 999 }}
+        runAsGroup: {{ .Values.postgresql.securityContext.runAsGroup | default 999 }}
+        runAsNonRoot: true
+      {{- else }}
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+      {{- end }}
+      {{- if and .Values.postgresql.affinity .Values.postgresql.affinity.podAntiAffinity .Values.postgresql.affinity.podAntiAffinity.enabled }}
+      affinity:
+        podAntiAffinity:
+          {{- if eq .Values.postgresql.affinity.podAntiAffinity.type "required" }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+          {{- else }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+          {{- end }}
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                  - {{ include "postgresql.name" . }}
+                - key: app.kubernetes.io/instance
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}
+                - key: app.kubernetes.io/component
+                  operator: In
+                  values:
+                  - postgresql
+              topologyKey: {{ .Values.postgresql.affinity.podAntiAffinity.topologyKey | default "kubernetes.io/hostname" }}
+      {{- end }}
+      initContainers:
+      - name: fix-permissions
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          chown -R 999:999 /var/lib/postgresql/data || true
+          chmod 700 /var/lib/postgresql/data || true
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        securityContext:
+          runAsUser: 0
+          allowPrivilegeEscalation: false
+      containers:
+      - name: postgresql
+        image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+        imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+        {{- if .Values.postgresql.securityContext }}
+        securityContext:
+          runAsUser: {{ .Values.postgresql.securityContext.runAsUser | default 999 }}
+          runAsGroup: {{ .Values.postgresql.securityContext.runAsGroup | default 999 }}
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+        {{- else }}
+        securityContext:
+          runAsUser: 999
+          runAsGroup: 999
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+        {{- end }}
+        ports:
+        - name: postgresql
+          containerPort: 5432
+          protocol: TCP
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "postgresql.fullname" . }}-postgresql
+              key: postgres-user
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "postgresql.fullname" . }}-postgresql
+              key: postgres-password
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "postgresql.fullname" . }}-postgresql
+              key: postgres-db
+        - name: PGDATA
+          value: /var/lib/postgresql/data
+        {{- if and .Values.postgresql.ssl .Values.postgresql.ssl.enabled }}
+        - name: PGSSLMODE
+          value: {{ .Values.postgresql.ssl.mode }}
+        {{- end }}
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        - name: config
+          mountPath: /etc/postgresql/postgresql.conf
+          subPath: postgresql.conf
+        {{- if and .Values.postgresql.ssl .Values.postgresql.ssl.enabled .Values.postgresql.ssl.secretName }}
+        - name: ssl-certs
+          mountPath: /var/lib/postgresql/data/ssl
+          readOnly: true
+        {{- end }}
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U $(POSTGRES_USER) -d $(POSTGRES_DB)
+          initialDelaySeconds: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.liveness }}{{ .Values.postgresql.healthCheck.liveness.initialDelaySeconds | default 30 }}{{ else }}{{ 30 }}{{ end }}{{ else }}{{ 30 }}{{ end }}
+          periodSeconds: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.liveness }}{{ .Values.postgresql.healthCheck.liveness.periodSeconds | default 10 }}{{ else }}{{ 10 }}{{ end }}{{ else }}{{ 10 }}{{ end }}
+          timeoutSeconds: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.liveness }}{{ .Values.postgresql.healthCheck.liveness.timeoutSeconds | default 5 }}{{ else }}{{ 5 }}{{ end }}{{ else }}{{ 5 }}{{ end }}
+          successThreshold: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.liveness }}{{ .Values.postgresql.healthCheck.liveness.successThreshold | default 1 }}{{ else }}{{ 1 }}{{ end }}{{ else }}{{ 1 }}{{ end }}
+          failureThreshold: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.liveness }}{{ .Values.postgresql.healthCheck.liveness.failureThreshold | default 3 }}{{ else }}{{ 3 }}{{ end }}{{ else }}{{ 3 }}{{ end }}
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U $(POSTGRES_USER) -d $(POSTGRES_DB)
+          initialDelaySeconds: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.readiness }}{{ .Values.postgresql.healthCheck.readiness.initialDelaySeconds | default 5 }}{{ else }}{{ 5 }}{{ end }}{{ else }}{{ 5 }}{{ end }}
+          periodSeconds: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.readiness }}{{ .Values.postgresql.healthCheck.readiness.periodSeconds | default 5 }}{{ else }}{{ 5 }}{{ end }}{{ else }}{{ 5 }}{{ end }}
+          timeoutSeconds: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.readiness }}{{ .Values.postgresql.healthCheck.readiness.timeoutSeconds | default 3 }}{{ else }}{{ 3 }}{{ end }}{{ else }}{{ 3 }}{{ end }}
+          successThreshold: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.readiness }}{{ .Values.postgresql.healthCheck.readiness.successThreshold | default 1 }}{{ else }}{{ 1 }}{{ end }}{{ else }}{{ 1 }}{{ end }}
+          failureThreshold: {{ if .Values.postgresql.healthCheck }}{{ if .Values.postgresql.healthCheck.readiness }}{{ .Values.postgresql.healthCheck.readiness.failureThreshold | default 3 }}{{ else }}{{ 3 }}{{ end }}{{ else }}{{ 3 }}{{ end }}
+        resources:
+          {{- include "postgresql.resources" . | nindent 10 }}
+        command:
+        - postgres
+        - -c
+        - config_file=/etc/postgresql/postgresql.conf
+      volumes:
+      - name: data
+        {{- if .Values.postgresql.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ include "postgresql.fullname" . }}-postgresql-data
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      - name: config
+        configMap:
+          name: {{ include "postgresql.fullname" . }}-postgresql-config
+      {{- if and .Values.postgresql.ssl .Values.postgresql.ssl.enabled }}
+      {{- if .Values.postgresql.ssl.secretName }}
+      - name: ssl-certs
+        secret:
+          secretName: {{ .Values.postgresql.ssl.secretName }}
+      {{- end }}
+      {{- end }}
+{{- end }}
+

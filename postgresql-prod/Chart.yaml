@@ -1,0 +1,26 @@
+apiVersion: v2
+name: postgresql-prod
+description: "A Helm chart for PostgreSQL Production with PgBouncer, Read/Write Replication, and Automated Backups. Proprietario Eficify"
+type: application
+version: 1.0.0
+appVersion: "18.1"
+keywords:
+  - postgresql
+  - database
+  - pgbouncer
+  - backup
+  - replication
+  - production
+  - eficify
+home: https://www.postgresql.org/
+icon: https://www.postgresql.org/media/img/about/press/elephant.png
+sources:
+  - https://github.com/postgres/postgres
+maintainers:
+  - name: Eficify Team
+    email: team@eficify.com
+annotations:
+  proprietary: "true"
+  owner: "Eficify"
+dependencies: []
+

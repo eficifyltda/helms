@@ -1,0 +1,489 @@
+# PostgreSQL Production Helm Chart - Valores Otimizados para Produção
+# Este chart já vem com PgBouncer, Replicação e Backup habilitados por padrão
+
+# PostgreSQL Configuration
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "18.1"
+    pullPolicy: IfNotPresent
+  
+  # Database configuration
+  database: postgres
+  username: sadmin
+  password: "" # Se vazio, será gerada automaticamente
+  
+  # Size Preset: small, medium, large, xlarge, 2xlarge, 4xlarge, or custom
+  sizePreset: large # Recomendado para produção
+  
+  # Expor porta publicamente (LoadBalancer ou NodePort)
+  # Quando habilitado, a porta não pode ser 5432 por segurança
+  exposePublicly:
+    enabled: false
+    serviceType: LoadBalancer # LoadBalancer ou NodePort
+    port: 5433 # Porta diferente de 5432 quando pública
+  
+  # Resources (usado apenas quando sizePreset: custom)
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "2000m"
+    limits:
+      memory: "8Gi"
+      cpu: "4000m"
+  
+  # Storage (usado apenas quando sizePreset: custom)
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: "" # Usa o default do cluster
+    accessMode: ReadWriteOnce
+  
+  # Configuration (usado apenas quando sizePreset: custom)
+  config:
+    max_connections: 200
+    shared_buffers: "1GB"
+    effective_cache_size: "3GB"
+    maintenance_work_mem: "256MB"
+    checkpoint_completion_target: 0.9
+    wal_buffers: "16MB"
+    default_statistics_target: 100
+    random_page_cost: 1.1
+    effective_io_concurrency: 200
+    work_mem: "8MB"
+    min_wal_size: "2GB"
+    max_wal_size: "8GB"
+    max_worker_processes: 8
+    max_parallel_workers_per_gather: 4
+    max_parallel_workers: 8
+    max_parallel_maintenance_workers: 4
+  
+  # Service
+  service:
+    type: ClusterIP
+    port: 5432
+  
+  # DNS Configuration
+  dns:
+    enabled: true
+    custom: ""
+  
+  # Security Context
+  securityContext:
+    runAsUser: 999
+    runAsGroup: 999
+    fsGroup: 999
+  
+  # High Availability
+  affinity:
+    podAntiAffinity:
+      enabled: true
+      type: preferred # preferred ou required
+      topologyKey: kubernetes.io/hostname
+  
+  # Init Scripts - SQL scripts to run on initialization
+  initScripts:
+    enabled: true
+    scripts:
+      - name: init-extensions.sql
+        content: |
+          -- Extensões úteis para produção
+          CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+          CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+          CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+          
+          -- Configurar pg_stat_statements
+          ALTER SYSTEM SET pg_stat_statements.track = 'all';
+          ALTER SYSTEM SET pg_stat_statements.max = 10000;
+  
+  # SSL/TLS Configuration
+  ssl:
+    enabled: false
+    mode: require # disable, allow, prefer, require, verify-ca, verify-full
+    secretName: "" # Nome do secret com server.crt, server.key, ca.crt
+  
+  # Health Checks Configuration
+  healthCheck:
+    liveness:
+      initialDelaySeconds: 60
+      periodSeconds: 10
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 5
+    readiness:
+      initialDelaySeconds: 10
+      periodSeconds: 5
+      timeoutSeconds: 3
+      successThreshold: 1
+      failureThreshold: 3
+  
+  # Replication Configuration - HABILITADO POR PADRÃO
+  replication:
+    enabled: true
+    max_wal_senders: 10
+    wal_keep_size: "2GB"
+    hot_standby: true
+    hot_standby_feedback: true
+
+# Size Presets - Configurações pré-definidas para diferentes tamanhos
+sizePresets:
+  small:
+    description: "Ambiente de desenvolvimento/teste"
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "500m"
+    persistence:
+      size: "10Gi"
+    config:
+      max_connections: 50
+      shared_buffers: "128MB"
+      effective_cache_size: "384MB"
+      maintenance_work_mem: "32MB"
+      checkpoint_completion_target: 0.9
+      wal_buffers: "8MB"
+      default_statistics_target: 100
+      random_page_cost: 1.1
+      effective_io_concurrency: 200
+      work_mem: "2MB"
+      min_wal_size: "512MB"
+      max_wal_size: "2GB"
+      max_worker_processes: 2
+      max_parallel_workers_per_gather: 1
+      max_parallel_workers: 2
+      max_parallel_maintenance_workers: 1
+  
+  medium:
+    description: "Ambiente de staging"
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+    persistence:
+      size: "50Gi"
+    config:
+      max_connections: 100
+      shared_buffers: "512MB"
+      effective_cache_size: "1.5GB"
+      maintenance_work_mem: "128MB"
+      checkpoint_completion_target: 0.9
+      wal_buffers: "16MB"
+      default_statistics_target: 100
+      random_page_cost: 1.1
+      effective_io_concurrency: 200
+      work_mem: "4MB"
+      min_wal_size: "1GB"
+      max_wal_size: "4GB"
+      max_worker_processes: 4
+      max_parallel_workers_per_gather: 2
+      max_parallel_workers: 4
+      max_parallel_maintenance_workers: 2
+  
+  large:
+    description: "Produção pequena - Para cargas de trabalho moderadas"
+    resources:
+      requests:
+        memory: "4Gi"
+        cpu: "2000m"
+      limits:
+        memory: "8Gi"
+        cpu: "4000m"
+    persistence:
+      size: "500Gi"
+    config:
+      max_connections: 500
+      shared_buffers: "1GB"
+      effective_cache_size: "3GB"
+      maintenance_work_mem: "256MB"
+      checkpoint_completion_target: 0.9
+      wal_buffers: "16MB"
+      default_statistics_target: 100
+      random_page_cost: 1.1
+      effective_io_concurrency: 200
+      work_mem: "8MB"
+      min_wal_size: "2GB"
+      max_wal_size: "8GB"
+      max_worker_processes: 8
+      max_parallel_workers_per_gather: 4
+      max_parallel_workers: 8
+      max_parallel_maintenance_workers: 4
+  
+  xlarge:
+    description: "Produção média - Para cargas de trabalho altas"
+    resources:
+      requests:
+        memory: "8Gi"
+        cpu: "4000m"
+      limits:
+        memory: "16Gi"
+        cpu: "8000m"
+    persistence:
+      size: "500Gi"
+    config:
+      max_connections: 500
+      shared_buffers: "4GB"
+      effective_cache_size: "12GB"
+      maintenance_work_mem: "512MB"
+      checkpoint_completion_target: 0.9
+      wal_buffers: "16MB"
+      default_statistics_target: 100
+      random_page_cost: 1.1
+      effective_io_concurrency: 200
+      work_mem: "16MB"
+      min_wal_size: "4GB"
+      max_wal_size: "16GB"
+      max_worker_processes: 16
+      max_parallel_workers_per_gather: 8
+      max_parallel_workers: 16
+      max_parallel_maintenance_workers: 8
+  
+  2xlarge:
+    description: "Produção grande - Para cargas de trabalho muito altas"
+    resources:
+      requests:
+        memory: "16Gi"
+        cpu: "8000m"
+      limits:
+        memory: "32Gi"
+        cpu: "16000m"
+    persistence:
+      size: "500Gi"
+    config:
+      max_connections: 500
+      shared_buffers: "8GB"
+      effective_cache_size: "24GB"
+      maintenance_work_mem: "1GB"
+      checkpoint_completion_target: 0.9
+      wal_buffers: "16MB"
+      default_statistics_target: 100
+      random_page_cost: 1.1
+      effective_io_concurrency: 200
+      work_mem: "32MB"
+      min_wal_size: "8GB"
+      max_wal_size: "32GB"
+      max_worker_processes: 32
+      max_parallel_workers_per_gather: 16
+      max_parallel_workers: 32
+      max_parallel_maintenance_workers: 16
+  
+  4xlarge:
+    description: "Produção enterprise - Para cargas de trabalho extremas"
+    resources:
+      requests:
+        memory: "32Gi"
+        cpu: "16000m"
+      limits:
+        memory: "64Gi"
+        cpu: "32000m"
+    persistence:
+      size: "1Ti"
+    config:
+      max_connections: 1000
+      shared_buffers: "16GB"
+      effective_cache_size: "48GB"
+      maintenance_work_mem: "2GB"
+      checkpoint_completion_target: 0.9
+      wal_buffers: "16MB"
+      default_statistics_target: 100
+      random_page_cost: 1.1
+      effective_io_concurrency: 200
+      work_mem: "64MB"
+      min_wal_size: "16GB"
+      max_wal_size: "64GB"
+      max_worker_processes: 64
+      max_parallel_workers_per_gather: 32
+      max_parallel_workers: 64
+      max_parallel_maintenance_workers: 32
+
+# Read Replica Configuration - HABILITADO POR PADRÃO
+readReplica:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "18.1"
+    pullPolicy: IfNotPresent
+  
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "2000m"
+    limits:
+      memory: "8Gi"
+      cpu: "4000m"
+  
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: "" # Usa o default do cluster
+    accessMode: ReadWriteOnce
+  
+  service:
+    type: ClusterIP
+    port: 5432
+  
+  securityContext:
+    runAsUser: 999
+    runAsGroup: 999
+    fsGroup: 999
+
+# PgBouncer Configuration - HABILITADO POR PADRÃO
+pgbouncer:
+  enabled: true
+  image:
+    repository: pgbouncer/pgbouncer
+    tag: "1.15.0"
+    pullPolicy: IfNotPresent
+  
+  # Connection pool settings
+  poolMode: transaction # session, transaction, statement
+  maxClientConn: 2000
+  defaultPoolSize: 50
+  minPoolSize: 10
+  reservePoolSize: 10
+  reservePoolTimeout: 5
+  maxDBConnections: 100
+  maxUserConnections: 50
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  
+  service:
+    type: ClusterIP
+    port: 5432
+  
+  adminUsers: ["sadmin"]
+  statsUsers: ["sadmin"]
+
+# Backup Configuration - HABILITADO POR PADRÃO
+backup:
+  enabled: true
+  
+  # Schedule (cron format)
+  schedule: "0 2 * * *" # Diariamente às 2h
+  
+  # Backup destination
+  destination: s3 # s3 ou disk
+  
+  # S3 Configuration
+  s3:
+    enabled: true
+    bucket: "" # CONFIGURE com seu bucket S3
+    region: "us-east-1"
+    endpoint: "" # Para S3-compatible storage (MinIO, etc)
+    accessKeyId: "" # Ou use IAM role
+    secretAccessKey: ""
+    # Opcional: usar IAM role ao invés de credenciais
+    useIAMRole: false
+  
+  # Disk Configuration
+  disk:
+    enabled: false
+    path: "/backups"
+    retentionDays: 7 # Manter backups por X dias
+  
+  # Backup settings
+  retention: 30 # Número de backups a manter (30 dias)
+  compression: true
+
+# Monitoring Configuration
+monitoring:
+  enabled: true
+  
+  # Prometheus ServiceMonitor
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    scrapeTimeout: 10s
+    labels: {}
+  
+  # PostgreSQL Exporter
+  postgresExporter:
+    enabled: true
+    image:
+      repository: quay.io/prometheuscommunity/postgres-exporter
+      tag: "v0.15.0"
+      pullPolicy: IfNotPresent
+    
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"
+        cpu: "200m"
+    
+    # Métricas customizadas
+    queries: |
+      pg_replication:
+        query: "SELECT CASE WHEN NOT pg_is_in_recovery() THEN 0 ELSE GREATEST (0, EXTRACT(EPOCH FROM (now() - pg_last_xact_replay_timestamp()))) END AS lag"
+        master: true
+        metrics:
+          - lag:
+              usage: "GAUGE"
+              description: "Replication lag behind master in seconds"
+
+# Ingress (opcional)
+ingress:
+  enabled: false
+  className: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.middlewares: default-headers@kubernetescrd
+  hostnameServer: "" # Ex: k8s-prod, k8s-stg (será usado no hostname)
+  hosts:
+    - host: ""
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Service Account
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+  # Exemplo para AWS IAM:
+  # annotations:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT:role/ROLE_NAME
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  maxUnavailable: 0
+
+# Network Policy
+networkPolicy:
+  enabled: false
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress: []
+
+# Backup Restore Job
+backupRestore:
+  enabled: false
+  restoreFromS3:
+    bucket: ""
+    key: ""
+    region: "us-east-1"
+  restoreFromDisk:
+    path: ""
+  options:
+    dropBeforeRestore: false
+    createDatabase: true
+

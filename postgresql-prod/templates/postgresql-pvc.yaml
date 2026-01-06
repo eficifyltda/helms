@@ -1,0 +1,23 @@
+{{- if and .Values.postgresql.enabled .Values.postgresql.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "postgresql.fullname" . }}-postgresql-data
+  labels:
+    {{- include "postgresql.postgresql.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ include "postgresql.persistence.accessMode" . }}
+  resources:
+    requests:
+      storage: {{ include "postgresql.persistence.size" . }}
+  {{- $storageClass := include "postgresql.persistence.storageClass" . }}
+  {{- if $storageClass }}
+  {{- if (eq "-" $storageClass) }}
+  storageClassName: ""
+  {{- else }}
+  storageClassName: {{ $storageClass }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+

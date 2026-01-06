@@ -1,0 +1,22 @@
+{{- if .Values.pgbouncer.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "postgresql.fullname" . }}-pgbouncer
+  labels:
+    {{- include "postgresql.pgbouncer.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.pgbouncer.service.type }}
+  ports:
+    - port: {{ .Values.pgbouncer.service.port }}
+      targetPort: pgbouncer
+      protocol: TCP
+      name: pgbouncer
+    - port: 9127
+      targetPort: admin
+      protocol: TCP
+      name: admin
+  selector:
+    {{- include "postgresql.pgbouncer.selectorLabels" . | nindent 4 }}
+{{- end }}
+

@@ -1,0 +1,12 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.postgresExporter.enabled .Values.monitoring.postgresExporter.queries }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postgresql.fullname" . }}-postgres-exporter-queries
+  labels:
+    {{- include "postgresql.exporter.labels" . | nindent 4 }}
+data:
+  queries.yaml: |
+{{ .Values.monitoring.postgresExporter.queries | indent 4 }}
+{{- end }}
+
