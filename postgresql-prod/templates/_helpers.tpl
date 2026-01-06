@@ -335,3 +335,25 @@ Format: [random]-pgsql-db-replica.[hostname-server].eficify.cloud
 {{- end }}
 {{- end }}
 
+{{/*
+Get PgBouncer service type (public or cluster)
+*/}}
+{{- define "postgresql.pgbouncer.service.type" -}}
+{{- if and .Values.pgbouncer.exposePublicly .Values.pgbouncer.exposePublicly.enabled }}
+{{- .Values.pgbouncer.exposePublicly.serviceType }}
+{{- else }}
+{{- .Values.pgbouncer.service.type | default "ClusterIP" }}
+{{- end }}
+{{- end }}
+
+{{/*
+Get PgBouncer service port
+*/}}
+{{- define "postgresql.pgbouncer.service.port" -}}
+{{- if and .Values.pgbouncer.exposePublicly .Values.pgbouncer.exposePublicly.enabled }}
+{{- .Values.pgbouncer.exposePublicly.port }}
+{{- else }}
+{{- .Values.pgbouncer.service.port | default 5432 }}
+{{- end }}
+{{- end }}
+

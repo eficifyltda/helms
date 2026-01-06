@@ -1,4 +1,8 @@
 {{- if and .Values.monitoring.enabled .Values.monitoring.serviceMonitor.enabled }}
+{{- /* 
+  NOTA: Este ServiceMonitor requer o Prometheus Operator instalado no cluster.
+  Se você não tiver o Prometheus Operator, desabilite serviceMonitor.enabled no values.yaml
+*/}}
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:

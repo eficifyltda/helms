@@ -6,9 +6,9 @@ metadata:
   labels:
     {{- include "postgresql.pgbouncer.labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.pgbouncer.service.type }}
+  type: {{ include "postgresql.pgbouncer.service.type" . }}
   ports:
-    - port: {{ .Values.pgbouncer.service.port }}
+    - port: {{ include "postgresql.pgbouncer.service.port" . }}
       targetPort: pgbouncer
       protocol: TCP
       name: pgbouncer

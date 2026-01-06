@@ -116,16 +116,21 @@ helm install postgresql-prod . --set postgresql.sizePreset=4xlarge
 | `postgresql.password` | Senha do banco | `""` (gerada automaticamente) |
 | `postgresql.replication.enabled` | Habilita configuração de replicação | `true` ✅ |
 | `readReplica.enabled` | Habilita réplica somente leitura | `true` ✅ |
+| `postgresql.exposePublicly.enabled` | Expõe PostgreSQL publicamente | `false` ⚠️ |
 | `pgbouncer.enabled` | Habilita PgBouncer | `true` ✅ |
+| `pgbouncer.exposePublicly.enabled` | Expõe PgBouncer publicamente | `true` ✅ |
+| `pgbouncer.exposePublicly.port` | Porta do PgBouncer quando exposto | `5432` |
+| `pgbouncer.exposePublicly.serviceType` | Tipo de service (LoadBalancer/NodePort) | `LoadBalancer` |
 | `backup.enabled` | Habilita backups | `true` ✅ |
 | `backup.schedule` | Cron schedule para backups | `0 2 * * *` (diariamente às 2h) |
 | `backup.retention` | Número de backups a manter | `30` (30 dias) |
 | `backup.destination` | Destino do backup (s3/disk) | `s3` |
 | `monitoring.enabled` | Habilita monitoramento | `true` |
+| `monitoring.serviceMonitor.enabled` | Habilita ServiceMonitor (requer Prometheus Operator) | `false` ⚠️ |
 
 ### Configuração do PgBouncer (Já Habilitado)
 
-O PgBouncer já vem configurado e otimizado para produção:
+O PgBouncer já vem configurado e otimizado para produção, e **exposto publicamente por padrão**:
 
 ```yaml
 pgbouncer:
@@ -135,12 +140,31 @@ pgbouncer:
   defaultPoolSize: 50
   minPoolSize: 10
   reservePoolSize: 10
+  
+  # Exposição pública (habilitada por padrão)
+  exposePublicly:
+    enabled: true  # ✅ Exposto publicamente por padrão
+    serviceType: LoadBalancer  # LoadBalancer ou NodePort
+    port: 5432  # Porta configurável
 ```
 
 **Conexão via PgBouncer (recomendado):**
 - Service: `<release-name>-pgbouncer`
-- Porta: `5432`
+- Tipo: `LoadBalancer` (por padrão, exposto publicamente)
+- Porta: `5432` (configurável via `pgbouncer.exposePublicly.port`)
 - Use este endpoint para todas as conexões da aplicação
+
+**Configurar porta diferente do PgBouncer:**
+```bash
+helm install postgresql-prod . \
+  --set pgbouncer.exposePublicly.port=15432
+```
+
+**Desabilitar exposição pública do PgBouncer:**
+```bash
+helm install postgresql-prod . \
+  --set pgbouncer.exposePublicly.enabled=false
+```
 
 ### Configuração de Replicação (Já Habilitada)
 
@@ -264,33 +288,49 @@ postgresql:
 
 ### Conectar ao PostgreSQL
 
+**⚠️ IMPORTANTE**: Por padrão, apenas o **PgBouncer é exposto publicamente** (LoadBalancer). O PostgreSQL Master e Read Replica são **apenas internos** (ClusterIP) por segurança.
+
 ```bash
-# Via PgBouncer (RECOMENDADO - use este para aplicações)
+# Via PgBouncer (RECOMENDADO - exposto publicamente por padrão)
+# Se exposto como LoadBalancer, use o IP externo do service
+kubectl get svc postgresql-prod-pgbouncer
+psql -h <EXTERNAL-IP> -p 5432 -U sadmin -d postgres
+
+# Ou via port-forward (para testes locais)
 kubectl port-forward svc/postgresql-prod-pgbouncer 5432:5432
 psql -h localhost -U sadmin -d postgres
 
-# Diretamente ao PostgreSQL Master (escrita)
+# Diretamente ao PostgreSQL Master (apenas interno - use port-forward)
 kubectl port-forward svc/postgresql-prod-postgresql 5432:5432
 psql -h localhost -U sadmin -d postgres
 
-# Via Read Replica (somente leitura)
+# Via Read Replica (apenas interno - use port-forward)
 kubectl port-forward svc/postgresql-prod-read-replica 5432:5432
 psql -h localhost -U sadmin -d postgres
 ```
 
 ### String de Conexão
 
-**Para aplicações (use PgBouncer):**
+**Para aplicações externas (use PgBouncer - exposto publicamente):**
+```
+# Se LoadBalancer, use o IP externo
+postgresql://sadmin:PASSWORD@<EXTERNAL-IP>:5432/postgres
+
+# Ou se configurou porta diferente
+postgresql://sadmin:PASSWORD@<EXTERNAL-IP>:<PORTA>/postgres
+```
+
+**Para aplicações internas no cluster (use PgBouncer):**
 ```
 postgresql://sadmin:PASSWORD@postgresql-prod-pgbouncer:5432/postgres
 ```
 
-**Para escrita (Master):**
+**Para escrita (Master - apenas interno):**
 ```
 postgresql://sadmin:PASSWORD@postgresql-prod-postgresql:5432/postgres
 ```
 
-**Para leitura (Read Replica):**
+**Para leitura (Read Replica - apenas interno):**
 ```
 postgresql://sadmin:PASSWORD@postgresql-prod-read-replica:5432/postgres
 ```
@@ -392,11 +432,21 @@ kubectl exec -it <read-replica-pod> -- psql -U sadmin -d postgres -c "SELECT pg_
 
 ### Problemas Comuns
 
-1. **Backup falhando**: Verifique as credenciais S3 ou permissões do IAM role
-2. **Read Replica não sincroniza**: Verifique se o master está acessível e se a replicação está habilitada
-3. **PgBouncer não conecta**: Verifique se o PostgreSQL master está rodando
-4. **Senha não definida**: Use `kubectl get secret` para obter a senha gerada automaticamente
-5. **Volume não criado**: Verifique se o StorageClass está configurado corretamente
+1. **Erro "no matches for kind ServiceMonitor"**: O ServiceMonitor requer o Prometheus Operator. Desabilite-o no values.yaml:
+   ```bash
+   --set monitoring.serviceMonitor.enabled=false
+   ```
+   Ou no seu arquivo de valores: `monitoring.serviceMonitor.enabled: false`
+
+2. **Backup falhando**: Verifique as credenciais S3 ou permissões do IAM role
+
+3. **Read Replica não sincroniza**: Verifique se o master está acessível e se a replicação está habilitada
+
+4. **PgBouncer não conecta**: Verifique se o PostgreSQL master está rodando
+
+5. **Senha não definida**: Use `kubectl get secret` para obter a senha gerada automaticamente
+
+6. **Volume não criado**: Verifique se o StorageClass está configurado corretamente
 
 ## Desinstalação
 

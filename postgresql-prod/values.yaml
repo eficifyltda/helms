@@ -18,9 +18,10 @@ postgresql:
   sizePreset: large # Recomendado para produção
   
   # Expor porta publicamente (LoadBalancer ou NodePort)
-  # Quando habilitado, a porta não pode ser 5432 por segurança
+  # Por padrão, apenas o PgBouncer é exposto publicamente, não o PostgreSQL
+  # Desabilite esta opção para manter PostgreSQL apenas interno
   exposePublicly:
-    enabled: false
+    enabled: false  # PostgreSQL não expõe porta por padrão
     serviceType: LoadBalancer # LoadBalancer ou NodePort
     port: 5433 # Porta diferente de 5432 quando pública
   
@@ -359,9 +360,17 @@ pgbouncer:
       memory: "1Gi"
       cpu: "1000m"
   
+  # Service Configuration
   service:
-    type: ClusterIP
+    type: ClusterIP  # Será alterado para LoadBalancer/NodePort se exposePublicly.enabled=true
     port: 5432
+  
+  # Expor PgBouncer publicamente (LoadBalancer ou NodePort)
+  # Por padrão, o PgBouncer é exposto publicamente para acesso externo
+  exposePublicly:
+    enabled: true  # ✅ PgBouncer exposto por padrão
+    serviceType: LoadBalancer # LoadBalancer ou NodePort
+    port: 5432  # Porta padrão do PostgreSQL (pode ser alterada)
   
   adminUsers: ["sadmin"]
   statsUsers: ["sadmin"]
@@ -402,8 +411,10 @@ monitoring:
   enabled: true
   
   # Prometheus ServiceMonitor
+  # Desabilitado por padrão - requer Prometheus Operator (CRD ServiceMonitor)
+  # Habilite apenas se tiver o Prometheus Operator instalado
   serviceMonitor:
-    enabled: true
+    enabled: false
     interval: 30s
     scrapeTimeout: 10s
     labels: {}
