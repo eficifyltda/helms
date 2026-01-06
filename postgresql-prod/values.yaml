@@ -74,7 +74,13 @@ postgresql:
   securityContext:
     runAsUser: 999
     runAsGroup: 999
-    fsGroup: 999
+    fsGroup: 999  # fsGroup ajusta automaticamente as permissões do volume
+  
+  # Volume Permissions
+  # Habilite apenas se o volume já existir com permissões incorretas
+  # ⚠️ Requer que a política de segurança permita initContainers com runAsUser: 0
+  volumePermissions:
+    enabled: false  # Desabilitado por padrão - habilite apenas se necessário
   
   # High Availability
   affinity:

@@ -60,6 +60,29 @@ spec:
                   - postgresql
               topologyKey: {{ .Values.postgresql.affinity.podAntiAffinity.topologyKey | default "kubernetes.io/hostname" }}
       {{- end }}
+      {{- if and .Values.postgresql.volumePermissions .Values.postgresql.volumePermissions.enabled }}
+      initContainers:
+      - name: fix-permissions
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          chown -R 999:999 /var/lib/postgresql/data || true
+          chmod 700 /var/lib/postgresql/data || true
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        securityContext:
+          runAsUser: 0
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - CHOWN
+            - FOWNER
+      {{- end }}
       containers:
       - name: postgresql
         image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
